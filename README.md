@@ -14,22 +14,26 @@ with process-variation amplitude randomized per pair):**
 
 | Metric | Value |
 |---|---|
-| Accuracy @ 5 px tolerance | **93 % (28/30)** |
+| Accuracy @ 5 px tolerance | **97 % (29/30)** |
 | Median localization error | **0.07 px** (sub-pixel) |
 | Mean inference time per pair | **~1.6 s** (CPU only, no GPU) |
 | DRAM-style pairs only | 100 % (10/10) |
-| At 3x training noise (mixed) | 100 % (15/15) |
+| FinFET-style pairs only | 95 % (19/20) |
+| At 3x training noise (mixed) | 93 % (14/15) |
 | Worst case: no across-die variation at all | 60 % (6/10) |
 
-**Known limitation (stated honestly).** All observed failures are FinFET-style
-pairs. Fins are translation-invariant along their length, and the gate-row period
-is large, so a small reference window carries fewer independent localization cues
-in the y-direction than a DRAM contact-via grid does. Accuracy also depends on
-how much across-die CD non-uniformity the die exhibits: our generator randomizes
-this per pair (including near-zero), and in the degenerate case of a perfectly
-uniform, purely periodic array the problem becomes close to genuinely ambiguous
-and accuracy falls to ~60 %. We report this range rather than the flattering
-single number a fixed, strong-variation dataset would produce.
+**Known limitation (stated honestly).** Remaining failures are FinFET-style
+pairs, or cases at elevated noise where the true site and one adjacent lattice
+period become statistically close to indistinguishable. Fins are
+translation-invariant along their length, so a small reference window carries
+fewer independent localization cues in the y-direction than a DRAM contact-via
+grid does; a low-pass "fingerprint" verification stage (see below) recovers
+most of this gap but not all of it. Accuracy also depends on how much across-die
+CD non-uniformity the die exhibits: our generator randomizes this per pair
+(including near-zero), and in the degenerate case of a perfectly uniform, purely
+periodic array the problem becomes genuinely ambiguous and accuracy falls to
+~60 %. We report this range rather than the flattering single number a fixed,
+strong-variation dataset would produce.
 
 No deep learning, no model weights, no training step — a fully classical,
 CPU-only pipeline that is deterministic and reproducible.

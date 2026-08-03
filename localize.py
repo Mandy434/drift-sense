@@ -39,11 +39,11 @@ import numpy as np
 NOMINAL_SCALE_RATIO = 10.0     # reference is 100x, search is 10x
 SEARCH_BLUR = 1.5              # denoising sigmas (in pixels)
 TEMPLATE_BLUR = 1.0
-PEAK_MARGIN = 0.004            # combined-score margin for true ambiguity
+PEAK_MARGIN = 0.001            # combined-score margin for true ambiguity
 CANDIDATE_MARGIN = 0.025       # lattice-NCC margin for stage-2 candidates
 PITCH_SIGMA = 8.0              # low-pass sigma > array pitch (px)
 FP_CONFIDENT = 0.70            # min fp correlation to trust an override
-FP_GAP = 0.10                  # min fp advantage over the lattice winner
+FP_GAP = 0.03                  # min fp advantage over the lattice winner
 FP_MAX_DEFICIT = 0.02          # max lattice deficit an override may have
 NMS_RADIUS = 12                # px, suppress duplicate detections of one site
 
