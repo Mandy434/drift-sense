@@ -246,15 +246,22 @@ def sem_capture(layout, rng, blur_sigma, dose, read_sigma, edge_gain):
 # 3. PAIR GENERATION
 # ---------------------------------------------------------------------------
 
-def generate_pair(rng, style="dram", search_size=1000, ref_size=256,
+def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
                   scale_ratio=10.0, noise_scale=1.0, pv_amplitude=None):
     """
     Build one (reference, search, ground_truth) sample.
 
+    Per the official spec, BOTH images are saved at 1000x1000 pixels: the
+    reference represents a 100x-magnification capture (1 nm/px, ~1x1 um FOV)
+    and the search image a 10x-magnification capture of a 10x larger physical
+    area at the same pixel count (10 nm/px, ~10x10 um FOV) -- so the reference
+    pattern appears shrunk 10x, occupying ~100x100 px inside the 1000x1000
+    search image.
+
     Returns
     -------
-    ref_u8    : reference image  (ref_size x ref_size, uint8)
-    search_u8 : search image     (search_size x search_size, uint8)
+    ref_u8    : reference image  (ref_size x ref_size, uint8) -- 1000x1000
+    search_u8 : search image     (search_size x search_size, uint8) -- 1000x1000
     gt        : dict with true center (x, y) in search-image pixels + params
     """
     # hi-res layout: search_size at 10x  ->  layout is 10x larger per axis...
@@ -294,8 +301,12 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=256,
     # ---- REFERENCE capture (100x): crop then image ----
     half = ref_footprint // 2
     ref_crop = layout[cy_l - half:cy_l + half, cx_l - half:cx_l + half]
-    ref_hi = cv2.resize(ref_crop, (ref_size, ref_size),
-                        interpolation=cv2.INTER_AREA)
+    # INTER_AREA is a decimation filter (best for downsizing); when ref_size
+    # is larger than the raw crop (the spec's 1000x1000 default upsizes an
+    # ~800px crop), use a proper interpolation filter instead to avoid
+    # softening/aliasing artifacts that would otherwise cost matching accuracy.
+    interp = cv2.INTER_AREA if ref_size <= ref_crop.shape[0] else cv2.INTER_CUBIC
+    ref_hi = cv2.resize(ref_crop, (ref_size, ref_size), interpolation=interp)
     ref_img = sem_capture(
         ref_hi, rng,
         blur_sigma=rng.uniform(0.8, 1.2),      # sharp: high mag, small probe
@@ -354,7 +365,8 @@ def main():
                     help="architecture style: dram, finfet, or mixed (alternate)")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--search-size", type=int, default=1000)
-    ap.add_argument("--ref-size", type=int, default=256)
+    ap.add_argument("--ref-size", type=int, default=1000,
+                    help="reference image pixel size (spec: 1000x1000, same as search)")
     ap.add_argument("--pv-amplitude", type=float, default=None,
                     help="fix the process-variation fingerprint amplitude "
                          "(default: randomized per pair in [0, 0.35])")

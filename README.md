@@ -14,22 +14,25 @@ with process-variation amplitude randomized per pair):**
 
 | Metric | Value |
 |---|---|
-| Accuracy @ 5 px tolerance | **97 % (29/30)** |
+| Accuracy @ 5 px tolerance | **90 % (27/30)** |
 | Median localization error | **0.07 px** (sub-pixel) |
 | Mean inference time per pair | **~1.6 s** (CPU only, no GPU) |
-| DRAM-style pairs only | 100 % (10/10) |
-| FinFET-style pairs only | 95 % (19/20) |
-| At 3x training noise (mixed) | 93 % (14/15) |
+| DRAM-style pairs only | 90 % (9/10) |
+| FinFET-style pairs only | 90 % (18/20) |
+| At 3x training noise (mixed) | 87 % (13/15) |
 | Worst case: no across-die variation at all | 60 % (6/10) |
 
-**Known limitation (stated honestly).** Remaining failures are FinFET-style
-pairs, or cases at elevated noise where the true site and one adjacent lattice
-period become statistically close to indistinguishable. Fins are
-translation-invariant along their length, so a small reference window carries
-fewer independent localization cues in the y-direction than a DRAM contact-via
-grid does; a low-pass "fingerprint" verification stage (see below) recovers
-most of this gap but not all of it. Accuracy also depends on how much across-die
-CD non-uniformity the die exhibits: our generator randomizes this per pair
+**Known limitation (stated honestly).** Failures occur on both DRAM and
+FinFET pairs, typically where the true site and one adjacent lattice period
+become statistically close to indistinguishable at low across-die variation —
+the low-pass "fingerprint" verification stage (see below) resolves most of
+these ties, but occasionally the wrong period scores marginally higher and
+the fingerprint's own advantage isn't decisive enough to override it. FinFET
+carries an additional structural disadvantage: fins are translation-invariant
+along their length, so a small reference window carries fewer independent
+localization cues in the y-direction than a DRAM contact-via grid does.
+Accuracy also depends on how much across-die CD non-uniformity the die
+exhibits: our generator randomizes this per pair
 (including near-zero), and in the degenerate case of a perfectly uniform, purely
 periodic array the problem becomes genuinely ambiguous and accuracy falls to
 ~60 %. We report this range rather than the flattering single number a fixed,
@@ -74,7 +77,7 @@ Options:
 | `--noise-scale F` | 1.0 | `>1` produces noisier images (robustness testing) |
 | `--pv-amplitude F` | randomized | fix across-die process-variation strength (`0.0` = purely periodic, hardest case) |
 | `--search-size N` | 1000 | search image dimension in pixels |
-| `--ref-size N` | 256 | reference image dimension in pixels |
+| `--ref-size N` | 1000 | reference image dimension in pixels (spec: 1000x1000, same as search) |
 
 ### 2. Run localization on a single pair
 

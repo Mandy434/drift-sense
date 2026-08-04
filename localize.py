@@ -192,7 +192,7 @@ def localize(reference, search, verbose=False):
 
     if verbose:
         print(f"# score={score:.4f} size={size}px angle={angle:+.2f}deg "
-              f"candidates={len(peaks)} time={time.time() - t0:.2f}s",
+              f"candidates={len(cand)} time={time.time() - t0:.2f}s",
               file=sys.stderr)
     return cx, cy
 
