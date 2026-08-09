@@ -594,12 +594,6 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # the optical path by ~60 nm, a third of an interference order, and paints
     # the whole field in tie-dye colour blobs that swamp the layout. Scale it to
     # the optical regime instead of reusing the electron number.
-    if modality == "optical":
-        if pv_amplitude is None:
-            pv_amplitude = (0.0 if visual_clarity
-                        else float(rng.uniform(0.0, 0.28)))
-        pv_amplitude *= 0.18
-
     # hi-res layout: search_size at 10x  ->  layout is 10x larger per axis...
     # rendering 10000px is slow, so render at 8000 and treat the mapping
     # search_px = layout_px / layout_to_search
@@ -616,9 +610,26 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # generated independently of ours -- so an algorithm must not assume a
     # strong smooth fingerprint is always present. Training/tuning across the
     # full range prevents over-reliance on this single cue.
+    #
+    # This ONE draw is made identically regardless of modality, and BEFORE
+    # compose_die was previously the point where SEM/optical rng streams could
+    # diverge -- an earlier, modality-only draw here (to compute the optical
+    # amplitude) consumed randomness that SEM never did, so the two runs
+    # entered compose_die with different rng states and rendered different
+    # dies even at the same --seed. Scaling for the optical regime now happens
+    # AFTER this shared draw, so it changes only the resulting field's
+    # amplitude, never the rng sequence consumed to get here.
     if pv_amplitude is None:
         pv_amplitude = (0.0 if visual_clarity
                         else float(rng.uniform(0.0, 0.28)))
+    if modality == "optical":
+        # Optical contrast comes from film thickness, and across-die thickness
+        # non-uniformity is only a few percent -- feeding the SEM (SE-yield)
+        # amplitude straight into the interference model swings the optical
+        # path by ~60 nm, a third of an interference order, and paints the
+        # whole field in tie-dye colour blobs that swamp the layout. Scale it
+        # down to the optical regime instead of reusing the electron number.
+        pv_amplitude = pv_amplitude * 0.18
     pv_field = process_variation_field(rng, layout_size, amplitude=pv_amplitude)
     layout = np.clip(layout * pv_field, 0, 1.4).astype(np.float32)
 
@@ -637,7 +648,23 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # template of the search-image border, where template matching cannot place
     # the window at all -- making the pair unsolvable by construction.
     margin = ref_footprint // 2 + 350
-    lo, hi = margin, layout_size - margin
+
+    # Site SELECTION uses a margin computed from the WIDEST possible reference
+    # field (optical's 3x ratio, not whichever modality this call happens to
+    # be) rather than this pair's own margin. scale_ratio changes ref_footprint,
+    # so a modality-specific margin gives SEM and optical different [lo, hi]
+    # windows -- at the same rng state this shifts which site (and, in the
+    # boundary branch, which strip candidate) gets picked, so "the same seed"
+    # silently stopped showing the same die location across modalities. The
+    # optical margin is always >= the SEM margin (a wider footprint needs more
+    # clearance), so using it everywhere still keeps every site comfortably
+    # inside bounds for both modalities -- it is a tighter constraint, never a
+    # looser one, and it makes site selection depend only on (seed, pair
+    # index), not on modality.
+    widest_ref_span = search_size / 3.0
+    widest_ref_footprint = int(widest_ref_span * layout_to_search)
+    sel_margin = widest_ref_footprint // 2 + 350
+    lo, hi = sel_margin, layout_size - sel_margin
 
     # SITE SELECTION. Sampling uniformly nearly always lands deep inside one
     # uniform mat -- the easy case, where the crop is pure periodic array. Real
@@ -656,8 +683,19 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
             cy_l = int(np.clip(cy_l + rng.integers(-slide, slide + 1), lo, hi))
             on_boundary = True
     if not on_boundary:
-        cx_l = int(rng.integers(lo, hi))
-        cy_l = int(rng.integers(lo, hi))
+        # Draw a FRACTIONAL position in [0, 1] rather than an integer directly
+        # in [lo, hi]. rng.integers(lo, hi) consumes randomness in a way that
+        # depends on the width (hi - lo), which differs between SEM and optical
+        # runs because their margins differ (optical's wider reference field
+        # needs more border clearance). Two runs at the same seed would then
+        # pick different absolute sites for "the same" pair index even though
+        # the layout itself (mats, presets, defects) is identical. A fractional
+        # draw consumes the RNG the same way regardless of margin, so the same
+        # seed places the site at the same relative spot in the die for every
+        # modality -- SEM pair i and optical pair i now show the same site.
+        fx, fy = rng.random(), rng.random()
+        cx_l = int(round(lo + fx * (hi - lo)))
+        cy_l = int(round(lo + fy * (hi - lo)))
 
     # ---- REFERENCE capture (100x): crop then image ----
     half = ref_footprint // 2
@@ -773,11 +811,21 @@ def main():
                          "accuracy should be quoted in the submission.")
     args = ap.parse_args()
 
-    rng = np.random.default_rng(args.seed)
     os.makedirs(args.out, exist_ok=True)
 
     records = []
     for i in range(args.num_pairs):
+        # Each pair gets its own independent RNG seeded from (args.seed, i)
+        # rather than sharing one RNG that advances across the loop. With a
+        # shared RNG, two separate runs at the same --seed but different
+        # --modality would draw layout identically for pair 0 (fine) but then
+        # diverge for every later pair, because SEM and optical capture
+        # consume different amounts of randomness -- so "the same seed shows
+        # the same die" silently stopped being true after pair 0. Seeding per
+        # pair makes SEM pair i and optical pair i show the same die (same
+        # layout, same true centre) for every i, at the same seed, which is
+        # also what generate_family_dataset.py already assumed was possible.
+        rng = np.random.default_rng((args.seed or 0) * 100003 + i)
         style = args.style if args.style != "mixed" else ("dram" if i % 2 == 0 else "finfet")
         ref, search, gt = generate_pair(rng, style=style,
                                         search_size=args.search_size,

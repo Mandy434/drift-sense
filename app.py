@@ -45,11 +45,14 @@ def _run(args, cwd=PROJECT_DIR):
                           capture_output=True, text=True, cwd=str(cwd))
 
 
-def _generate(out_dir, style, pairs, seed, modality):
+def _generate(out_dir, style, pairs, seed, modality, visual_clarity=False):
     if out_dir.exists():
         shutil.rmtree(out_dir)
-    p = _run([GEN, "--style", style, "--num-pairs", int(pairs), "--seed", int(seed),
-              "--out", out_dir, "--modality", modality])
+    args = [GEN, "--style", style, "--num-pairs", int(pairs), "--seed", int(seed),
+            "--out", out_dir, "--modality", modality]
+    if visual_clarity:
+        args.append("--visual-clarity")
+    p = _run(args)
     if p.returncode != 0:
         return None, p.stderr.strip()[-1500:]
     gt = out_dir / "ground_truth.json"
@@ -111,12 +114,13 @@ def _annotate(rec, out_dir, run_localiser):
     return cv2.cvtColor(pane, cv2.COLOR_BGR2RGB), caption
 
 
-def generate(style, pairs, seed, do_optical, do_localise, progress=gr.Progress()):
+def generate(style, pairs, seed, do_optical, do_localise, visual_clarity,
+             progress=gr.Progress()):
     sem_dir = PROJECT_DIR / "app_output_sem"
     opt_dir = PROJECT_DIR / "app_output_optical"
 
     progress(0.05, desc="generating SEM pairs")
-    recs, err = _generate(sem_dir, style, pairs, seed, "sem")
+    recs, err = _generate(sem_dir, style, pairs, seed, "sem", visual_clarity)
     if err:
         return [], [], None, f"Error generating SEM dataset:\n{err}"
 
@@ -132,7 +136,7 @@ def generate(style, pairs, seed, do_optical, do_localise, progress=gr.Progress()
     opt_gallery = []
     if do_optical:
         progress(0.65, desc="generating optical pairs")
-        orecs, oerr = _generate(opt_dir, style, pairs, seed, "optical")
+        orecs, oerr = _generate(opt_dir, style, pairs, seed, "optical", visual_clarity)
         if oerr:
             return sem_gallery, [], None, f"Error generating optical dataset:\n{oerr}"
         for i, rec in enumerate(orecs):
@@ -145,6 +149,12 @@ def generate(style, pairs, seed, do_optical, do_localise, progress=gr.Progress()
     msg = [f"{len(sem_gallery)} SEM pairs"]
     if opt_gallery:
         msg.append(f"{len(opt_gallery)} optical (RGB) pairs")
+    if visual_clarity:
+        msg.append("visual-clarity ON: fingerprint + micron landmarks OFF, "
+                   "clean flat mats (measured ~71% accuracy, demo/slides only)")
+    else:
+        msg.append("visual-clarity OFF: fingerprint + micron landmarks ON, "
+                   "textured mats (measured ~95% accuracy, the reported number)")
     if do_localise:
         msg.append("green box = ground truth, red cross = localiser prediction, "
                    "arrow = measured error")
@@ -190,6 +200,22 @@ with gr.Blocks(title="Drift-Sense Generator") as demo:
                                  label="Also generate optical microscope pairs (RGB, bonus)")
         do_localise = gr.Checkbox(value=True,
                                   label="Run localiser and show measured error (~2.5 s/pair)")
+    with gr.Row():
+        visual_clarity = gr.Checkbox(
+            value=False,
+            label="Visual-clarity mode (OFF = accuracy build, 95%: fingerprint + "
+                  "landmarks visible as textured patches / ON = clean-look build, "
+                  "71%: flat mats, demo/slides only)")
+        gr.Markdown(
+            "**OFF (default):** both disambiguating cues stay on -- mats show the "
+            "process-variation fingerprint (soft cloudy shading) and micron-scale "
+            "landmarks (checkerboards, pads, stripes). This is the accuracy the "
+            "submission reports: **95.0%**.\n\n"
+            "**ON:** both cues are switched off for the cleanest, flattest-looking "
+            "mats -- no shading, no landmarks. Measured accuracy drops to "
+            "**71.2%**. Use this only for a clean screenshot, not as the reported "
+            "number."
+        )
 
     btn = gr.Button("Generate", variant="primary")
     status = gr.Textbox(label="Status", interactive=False)
@@ -213,10 +239,13 @@ with gr.Blocks(title="Drift-Sense Generator") as demo:
         zip_file = gr.File(label="Download")
 
     btn.click(fn=generate,
-              inputs=[style, pairs, seed, do_optical, do_localise],
+              inputs=[style, pairs, seed, do_optical, do_localise, visual_clarity],
               outputs=[sem_gallery, opt_gallery, zip_file, status])
     download_btn.click(fn=make_zip, inputs=[], outputs=[zip_file])
 
 
 if __name__ == "__main__":
-    demo.launch()
+    # share=True asks Gradio's own servers for a temporary public URL (valid
+    # ~72 hours, requires this process to keep running). No separate hosting
+    # account needed. Set to False for local-only use.
+    demo.launch(share=True)
