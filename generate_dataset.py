@@ -39,142 +39,327 @@ import numpy as np
 
 
 # ---------------------------------------------------------------------------
+# 0. PHYSICAL CALIBRATION
+# ---------------------------------------------------------------------------
+# The search image is a 1000x1000 capture at 10 nm/px, i.e. a 10 x 10 um field
+# of view. The hi-res layout canvas covers that same field at LAYOUT_SIZE px,
+# so one layout pixel is a fixed physical length and every geometric parameter
+# below can be specified in nanometres instead of arbitrary pixels.
+SEARCH_FOV_NM = 10000.0                       # 1000 px * 10 nm/px
+LAYOUT_SIZE = 8000                            # canvas side, px
+NM_PER_LAYOUT_PX = SEARCH_FOV_NM / LAYOUT_SIZE        # = 1.25 nm/px
+
+
+def px(nanometres):
+    """Convert a physical length in nm to layout pixels."""
+    return nanometres / NM_PER_LAYOUT_PX
+
+
+# DRAM 6F^2 folded-bitline scaling. In a 6F^2 cell the word-line pitch is 2F
+# and the bit-line pitch 3F, where F is the half-pitch / minimum feature size.
+# The F values below span publicly discussed DRAM generations; they are
+# illustrative of that scaling trend, not any fab's real specification.
+DRAM_PRESETS = {
+    "dram_1x":      32.0,
+    "dram_compact": 36.0,
+    "dram_mid":     45.0,
+    "dram_loose":   58.0,
+    "dram_legacy":  75.0,
+}
+
+# FinFET geometry: fin pitch, fin width and contacted poly pitch (CPP, the
+# gate-row pitch). Published logic scaling keeps CPP at roughly twice the fin
+# pitch and the fin itself at about a third of its pitch; the values below
+# follow that relation across a range of generations.
+FINFET_PRESETS = {                 # fin_pitch_nm, fin_width_nm, cpp_nm
+    "finfet_a": (42.0, 14.0, 80.0),
+    "finfet_b": (54.0, 18.0, 102.0),
+    "finfet_c": (68.0, 22.0, 130.0),
+    "finfet_d": (86.0, 28.0, 164.0),
+    "finfet_e": (120.0, 40.0, 228.0),
+}
+
+
+# ---------------------------------------------------------------------------
 # 1. LAYOUT SYNTHESIS (DRAM-style)
 # ---------------------------------------------------------------------------
 
-def draw_dram_layout(rng, size=8000, pitch_wl=None, pitch_bl=None):
+def draw_dram_region(rng, img, x0, y0, x1, y1, preset=None):
     """
-    Draw a binary DRAM-style layout on a `size x size` canvas.
+    Draw a DRAM 6F^2 sub-array (a "mat") into img[y0:y1, x0:x1].
 
-    Returns float32 image in [0, 1]:
-        background substrate ~0.25, lines ~0.65, vias ~1.0
+    Geometry follows the folded-bitline 6F^2 cell: word-line pitch 2F,
+    bit-line pitch 3F, and storage-node contacts on a checkerboard subset of
+    the intersections (one contact per two cells) rather than a contact at
+    every crossing, which is what a real folded-bitline array looks like.
+
+    Intensities: substrate ~0.25, lines ~0.65, contacts ~1.0.
+
+    Per-instance CD and overlay jitter plus rare via open/short defects give
+    every neighbourhood a unique fingerprint that survives the 8x downsample
+    to the search image.
     """
-    if pitch_wl is None:
-        pitch_wl = rng.integers(60, 90)     # word-line pitch (px at hi-res)
-    if pitch_bl is None:
-        pitch_bl = rng.integers(60, 90)     # bit-line pitch
+    F = preset if preset is not None else float(rng.choice(list(DRAM_PRESETS.values())))
+    pitch_wl = max(6, int(round(px(2.0 * F))))          # word-line pitch, 2F
+    pitch_bl = max(6, int(round(px(3.0 * F))))          # bit-line pitch, 3F
+    line_w_wl = max(3, int(pitch_wl * rng.uniform(0.38, 0.48)))
+    line_w_bl = max(3, int(pitch_bl * rng.uniform(0.30, 0.38)))
+    via_r = max(2, int(px(F) * rng.uniform(0.34, 0.44)))
+    jit = max(1, int(px(1.5)))                          # ~1.5 nm overlay jitter
 
-    line_w_wl = max(8, int(pitch_wl * rng.uniform(0.30, 0.42)))
-    line_w_bl = max(8, int(pitch_bl * rng.uniform(0.30, 0.42)))
-    via_r     = max(5, int(min(pitch_wl, pitch_bl) * rng.uniform(0.14, 0.20)))
+    reg = img[y0:y1, x0:x1]
+    h, w = reg.shape
+    reg[:, :] = 0.25                                    # substrate
 
-    img = np.full((size, size), 0.25, np.float32)          # substrate
-
-    # Cell-to-cell variation must SURVIVE the 10x downsample to the search
-    # image, otherwise every cell looks identical and localization becomes
-    # mathematically impossible. All variation below is physically grounded:
-    #   - line-width (CD) variation across the die   [litho process variation]
-    #   - line-edge position jitter                  [overlay error]
-    #   - per-via size variation                     [via CD variation]
-    #   - missing / bridged vias                     [via open & short defects]
-
-    # horizontal word-lines (per-line width + intensity variation)
     y = int(rng.integers(0, pitch_wl))
     wl_rows = []
-    while y < size:
-        jitter = int(rng.integers(-4, 5))                  # overlay jitter
-        w = max(6, int(line_w_wl * rng.uniform(0.85, 1.15)))   # CD variation
-        inten = 0.65 * rng.uniform(0.94, 1.06)                 # film thickness
-        y0 = np.clip(y + jitter, 0, size - 1)
-        img[y0:y0 + w, :] = inten
-        wl_rows.append(y0 + w // 2)
+    while y < h:
+        j = int(rng.integers(-jit, jit + 1))
+        ww = max(2, int(line_w_wl * rng.uniform(0.85, 1.15)))   # CD variation
+        inten = 0.65 * rng.uniform(0.94, 1.06)                  # film thickness
+        yy = int(np.clip(y + j, 0, h - 1))
+        reg[yy:yy + ww, :] = inten
+        wl_rows.append(yy + ww // 2)
         y += pitch_wl
 
-    # vertical bit-lines
     x = int(rng.integers(0, pitch_bl))
     bl_cols = []
-    while x < size:
-        jitter = int(rng.integers(-4, 5))
-        w = max(6, int(line_w_bl * rng.uniform(0.85, 1.15)))
+    while x < w:
+        j = int(rng.integers(-jit, jit + 1))
+        ww = max(2, int(line_w_bl * rng.uniform(0.85, 1.15)))
         inten = 0.65 * rng.uniform(0.94, 1.06)
-        x0 = np.clip(x + jitter, 0, size - 1)
-        img[:, x0:x0 + w] = np.maximum(img[:, x0:x0 + w], inten)
-        bl_cols.append(x0 + w // 2)
+        xx = int(np.clip(x + j, 0, w - 1))
+        reg[:, xx:xx + ww] = np.maximum(reg[:, xx:xx + ww], inten)
+        bl_cols.append(xx + ww // 2)
         x += pitch_bl
 
-    # contact vias at intersections. Per-via radius/position variation plus
-    # rare defects -> the array stays "highly periodic" to the eye, but each
-    # neighborhood has a unique fingerprint that survives 10x downsampling.
-    p_missing = 0.02        # via open (missing contact)
-    p_bridge  = 0.005       # via short (two merged contacts)
-    for yy in wl_rows:
-        for xx in bl_cols:
+    p_missing, p_bridge = 0.02, 0.005      # via open / via short defect rates
+    for i, yy in enumerate(wl_rows):
+        for k, xx in enumerate(bl_cols):
+            if (i + k) % 2:                # folded bitline: 1 contact / 2 cells
+                continue
             r = rng.random()
             if r < p_missing:
-                continue                                   # missing via
-            rad = max(3, int(via_r * rng.uniform(0.70, 1.30)))  # via CD var.
-            dy = int(rng.integers(-3, 4))
-            dx = int(rng.integers(-3, 4))
-            if r < p_missing + p_bridge:                   # bridged via
-                cv2.ellipse(img, (xx + dx, yy + dy),
-                            (rad * 2, rad), 0, 0, 360, 1.0, -1)
+                continue
+            rad = max(1, int(via_r * rng.uniform(0.70, 1.30)))
+            dy = int(rng.integers(-jit, jit + 1))
+            dx = int(rng.integers(-jit, jit + 1))
+            if r < p_missing + p_bridge:
+                cv2.ellipse(reg, (xx + dx, yy + dy), (rad * 2, rad),
+                            0, 0, 360, 1.0, -1)
             else:
-                cv2.circle(img, (xx + dx, yy + dy), rad, 1.0, -1)
+                cv2.circle(reg, (xx + dx, yy + dy), rad, 1.0, -1)
+    return {"F_nm": F, "wl_pitch_nm": pitch_wl * NM_PER_LAYOUT_PX,
+            "bl_pitch_nm": pitch_bl * NM_PER_LAYOUT_PX}
 
-    return img
 
-
-def draw_finfet_layout(rng, size=8000, pitch_fin=None, pitch_gate=None):
+def draw_finfet_region(rng, img, x0, y0, x1, y1, preset=None):
     """
-    Draw a binary FinFET-style layout on a `size x size` canvas.
+    Draw a FinFET standard-cell block into img[y0:y1, x0:x1].
 
-    Dense parallel vertical fins, crossed by PERIODIC horizontal poly gate
-    rows (as in real multi-fin standard-cell rows), so any local crop -
-    including the small reference window - sees 1-2 gate crossings, giving
-    genuine 2D localizability (fins alone are translation-invariant along
-    their length). Bright gate-fin crossings model the higher effective SE
-    yield at the 3D corner where gate wraps the fin.
-    Returns float32 image in [0, 1]:
-        background substrate ~0.20, fins ~0.50, gates ~0.62, crossings ~0.85
+    Parallel vertical fins at the fin pitch, crossed by horizontal gate rows at
+    the contacted poly pitch (CPP), with source/drain contacts on a checkerboard
+    subset of the fin/gate cells. Fins alone are translation-invariant along
+    their length; the gate rows are what make a small crop localizable in y.
+
+    Intensities: substrate ~0.20, fins ~0.50, gates ~0.62, crossings ~0.85.
     """
-    if pitch_fin is None:
-        pitch_fin = rng.integers(60, 85)      # fin pitch (px at hi-res) --
-        # must stay well above the Nyquist limit after the ~8x downsample to
-        # the search image (matches DRAM word/bit-line pitch scale, ~60-90px)
-    if pitch_gate is None:
-        pitch_gate = rng.integers(500, 700)   # gate-row pitch: sized so a
-        # single ~800px reference crop typically contains 1-2 gate rows
+    if preset is None:
+        preset = FINFET_PRESETS[str(rng.choice(list(FINFET_PRESETS.keys())))]
+    fin_pitch_nm, fin_w_nm, cpp_nm = preset
+    pitch_fin = max(4, int(round(px(fin_pitch_nm))))
+    pitch_gate = max(8, int(round(px(cpp_nm))))
+    fin_w = max(2, int(round(px(fin_w_nm))))
+    gate_w = max(3, int(pitch_gate * rng.uniform(0.32, 0.42)))
+    jit = max(1, int(px(1.2)))
 
-    fin_w = max(4, int(pitch_fin * rng.uniform(0.30, 0.40)))
-    gate_w = max(30, int(pitch_gate * rng.uniform(0.10, 0.16)))
+    reg = img[y0:y1, x0:x1]
+    h, w = reg.shape
+    reg[:, :] = 0.20
 
-    img = np.full((size, size), 0.20, np.float32)          # substrate
-
-    # vertical fins with per-fin CD (width) and position jitter
     x = int(rng.integers(0, pitch_fin))
     fin_cols = []
-    while x < size:
-        jitter = int(rng.integers(-2, 3))                  # overlay jitter
-        w = max(3, int(fin_w * rng.uniform(0.85, 1.15)))    # fin CD variation
+    while x < w:
+        j = int(rng.integers(-jit, jit + 1))
+        ww = max(1, int(fin_w * rng.uniform(0.85, 1.15)))
         inten = 0.50 * rng.uniform(0.94, 1.06)
-        x0 = np.clip(x + jitter, 0, size - 1)
-        img[:, x0:x0 + w] = inten
-        fin_cols.append((x0, x0 + w))
+        xx = int(np.clip(x + j, 0, w - 1))
+        reg[:, xx:xx + ww] = inten
+        fin_cols.append((xx, xx + ww))
         x += pitch_fin
 
-    # periodic horizontal poly gate rows (per-row width + position jitter)
     y = int(rng.integers(0, pitch_gate))
     gate_rows = []
-    while y < size:
-        jitter = int(rng.integers(-3, 4))
-        w = max(20, int(gate_w * rng.uniform(0.85, 1.15)))
-        y0 = np.clip(y + jitter, 0, size - 1)
-        img[y0:y0 + w, :] = np.maximum(img[y0:y0 + w, :], 0.62)
-        gate_rows.append((y0, y0 + w))
+    while y < h:
+        j = int(rng.integers(-jit, jit + 1))
+        ww = max(2, int(gate_w * rng.uniform(0.85, 1.15)))
+        yy = int(np.clip(y + j, 0, h - 1))
+        reg[yy:yy + ww, :] = np.maximum(reg[yy:yy + ww, :], 0.62)
+        gate_rows.append((yy, yy + ww))
         y += pitch_gate
 
-    # bright crossings where gate wraps each fin + rare fin-break defects
-    p_break = 0.015
-    for (x0, x1) in fin_cols:
+    p_break = 0.015                                  # fin break defect rate
+    for i, (fx0, fx1) in enumerate(fin_cols):
         if rng.random() < p_break:
-            continue                                       # missing/broken fin
-        for (y0, y1) in gate_rows:
-            r = max(2, int(min(x1 - x0, y1 - y0) * rng.uniform(0.9, 1.15)))
-            cx = (x0 + x1) // 2 + int(rng.integers(-1, 2))
-            cy = (y0 + y1) // 2 + int(rng.integers(-1, 2))
-            cv2.circle(img, (cx, cy), r, 0.85, -1)
+            continue
+        for k, (gy0, gy1) in enumerate(gate_rows):
+            if (i + k) % 2:                          # contacts on a checkerboard
+                continue
+            r = max(1, int(min(fx1 - fx0, gy1 - gy0) * rng.uniform(0.9, 1.15)))
+            cx = (fx0 + fx1) // 2 + int(rng.integers(-1, 2))
+            cy = (gy0 + gy1) // 2 + int(rng.integers(-1, 2))
+            cv2.circle(reg, (cx, cy), r, 0.85, -1)
+    return {"fin_pitch_nm": fin_pitch_nm, "cpp_nm": cpp_nm}
 
-    return img
+
+def draw_strip_region(rng, img, x0, y0, x1, y1):
+    """
+    Draw a peripheral strip: sense-amp / decoder rows, global routing, scribe.
+
+    Real dies are not one uniform array -- sub-array mats are separated by
+    strips of visually distinct material. These strips are flatter (little
+    periodic texture) with sparse wide routing lines, and they are the main
+    mid-scale structure that survives the 8x downsample into the search image.
+    """
+    reg = img[y0:y1, x0:x1]
+    h, w = reg.shape
+    reg[:, :] = 0.33 * rng.uniform(0.92, 1.08)
+    horizontal = w >= h
+    span = w if horizontal else h
+    n = max(1, int(span / px(rng.uniform(300.0, 700.0))))
+    for _ in range(n):
+        lw = max(2, int(px(rng.uniform(30.0, 90.0))))
+        inten = 0.58 * rng.uniform(0.9, 1.1)
+        if horizontal:
+            p = int(rng.integers(0, max(1, h - lw)))
+            reg[p:p + lw, :] = inten
+        else:
+            p = int(rng.integers(0, max(1, w - lw)))
+            reg[:, p:p + lw] = inten
+
+    return None
+
+
+def compose_die(rng, style, size=LAYOUT_SIZE, mat_size_nm=None,
+                strip_width_nm=None):
+    """
+    Tile the canvas with independently generated mats separated by strips.
+
+    Each mat gets its own randomly chosen preset of the same architecture and
+    its own line phase, so the die is periodic *locally* but not globally --
+    which is what a real device looks like, and what gives the 10 nm/px search
+    image mid-scale structure to lock onto rather than one uniform texture.
+
+    Returns (layout, mats, strips) where mats/strips are lists of
+    (x0, y0, x1, y1) rectangles in layout pixels.
+    """
+    if mat_size_nm is None:
+        mat_size_nm = float(rng.uniform(2200.0, 4200.0))
+    if strip_width_nm is None:
+        strip_width_nm = float(rng.uniform(220.0, 480.0))
+    mat_px0 = max(200, int(round(px(mat_size_nm))))
+    strip_px = max(20, int(round(px(strip_width_nm))))
+
+    img = np.full((size, size), 0.25, np.float32)
+    draw = draw_dram_region if style == "dram" else draw_finfet_region
+    table = (list(DRAM_PRESETS.values()) if style == "dram"
+             else list(FINFET_PRESETS.values()))
+
+    # Choose an integer number of (mat, strip) cells that tiles the canvas
+    # EXACTLY, then distribute the remainder across mats evenly. Clamping the
+    # last cell at the canvas edge (the previous approach) leaves a visibly
+    # thin sliver mat/strip on one side of the die; this keeps every mat and
+    # every strip the same size, which is what a real reticle-stepped die
+    # looks like.
+    n_cells = max(1, round(size / (mat_px0 + strip_px)))
+    strip_total = n_cells * strip_px
+    mat_px = max(200, (size - strip_total) // n_cells)
+
+    def bounds(n):
+        b, p = [], 0
+        for i in range(n_cells):
+            m = min(n, p + mat_px)
+            b.append(("mat", p, m))
+            p = m
+            if i == n_cells - 1:
+                t = n                          # last strip absorbs any remainder
+            else:
+                t = min(n, p + strip_px)
+            b.append(("strip", p, t))
+            p = t
+        return b
+
+    bx, by = bounds(size), bounds(size)
+    mats, strips = [], []
+    for kindy, ya, yb in by:
+        for kindx, xa, xb in bx:
+            if yb - ya < 4 or xb - xa < 4:
+                continue
+            if kindy == "mat" and kindx == "mat":
+                idx = int(rng.integers(0, len(table)))
+                draw(rng, img, xa, ya, xb, yb, preset=table[idx])
+                mats.append((xa, ya, xb, yb))
+            else:
+                draw_strip_region(rng, img, xa, ya, xb, yb)
+                strips.append((xa, ya, xb, yb))
+
+    return img, mats, strips
+
+
+def draw_micron_structures(rng, img):
+    """
+    Stamp micron-scale structures over the composed die.
+
+    A real die is not only sub-100 nm array: it also carries periphery/logic
+    blocks, bond and probe pads, CMP dummy-fill fields and box-in-box overlay
+    marks, all in the 0.5-3 um range. These matter here for a specific reason:
+    they are the ONLY features above the ~180 nm diffraction limit of a light
+    microscope, so in the optical modality they carry essentially the whole
+    signal, while the 36-96 nm array is invisible. In SEM they act as
+    non-periodic landmarks that break lattice ambiguity outright.
+
+    Returns the list of stamped rectangles (for reporting/debug).
+    """
+    size = img.shape[0]
+    placed = []
+    n = int(rng.integers(5, 11))
+    for _ in range(n):
+        kind = rng.choice(["pad", "dummy_field", "logic_block"])
+        w = int(px(rng.uniform(900.0, 2600.0)))
+        h = int(px(rng.uniform(900.0, 2600.0)))
+        if w >= size or h >= size:
+            continue
+        x0 = int(rng.integers(0, size - w))
+        y0 = int(rng.integers(0, size - h))
+        reg = img[y0:y0 + h, x0:x0 + w]
+
+        if kind == "pad":                            # flat metal landing pad
+            reg[:, :] = rng.uniform(0.86, 1.0)
+            t = max(2, int(px(140.0)))
+            reg[:t, :] = reg[-t:, :] = 0.30           # recessed rim
+            reg[:, :t] = reg[:, -t:] = 0.30
+        elif kind == "overlay_mark":                 # box-in-box metrology mark
+            reg[:, :] = 0.28
+            t = max(2, int(px(200.0)))
+            reg[:t, :] = reg[-t:, :] = 0.97
+            reg[:, :t] = reg[:, -t:] = 0.97
+            q = min(h, w) // 4
+            reg[q:h - q, q:w - q] = 0.97
+            r2 = min(h, w) // 3
+            reg[r2:h - r2, r2:w - r2] = 0.22
+        elif kind == "dummy_field":                  # CMP dummy fill checkerboard
+            cell = max(2, int(px(rng.uniform(260.0, 520.0))))
+            yy, xx = np.mgrid[0:h, 0:w]
+            board = (((yy // cell) + (xx // cell)) % 2).astype(np.float32)
+            reg[:, :] = 0.34 + 0.52 * board
+        else:                                        # coarse logic/periphery block
+            reg[:, :] = 0.46 * rng.uniform(0.9, 1.1)
+            pitch = max(3, int(px(rng.uniform(320.0, 700.0))))
+            lw = max(2, pitch // 3)
+            for p in range(0, h - lw, pitch):
+                reg[p:p + lw, :] = 0.78
+        placed.append((x0, y0, x0 + w, y0 + h))
+    return placed
 
 
 def process_variation_field(rng, size, grid=20, amplitude=0.35):
@@ -195,7 +380,14 @@ def process_variation_field(rng, size, grid=20, amplitude=0.35):
     return field
 
 
-LAYOUTS = {"dram": draw_dram_layout, "finfet": draw_finfet_layout}
+def _whole_die(style):
+    def f(rng, size=LAYOUT_SIZE, **kw):
+        return compose_die(rng, style, size=size, **kw)[0]
+    return f
+
+
+# Backwards-compatible entry points: callers that just want a canvas.
+LAYOUTS = {"dram": _whole_die("dram"), "finfet": _whole_die("finfet")}
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +438,124 @@ def sem_capture(layout, rng, blur_sigma, dose, read_sigma, edge_gain):
 # 3. PAIR GENERATION
 # ---------------------------------------------------------------------------
 
+
+# --------------------------------------------------------------------------- #
+# Optical (brightfield reflected-light microscope) capture -- BONUS modality   #
+# --------------------------------------------------------------------------- #
+# Wafer inspection also happens on optical microscopes, where the image is
+# 3-channel RGB rather than a single electron-count channel. The physics is
+# different in three ways that matter for matching, and all three are modelled
+# here rather than colourising a grey image:
+#
+#   1. DIFFRACTION LIMIT. Resolution is ~ lambda / (2 NA); at lambda = 550 nm and
+#      NA = 0.90 that is ~305 nm, so the fine array (36-96 nm pitch here) is far
+#      below the limit and simply does not resolve. Only mid-scale structure --
+#      mats, strips, block edges -- survives. The PSF is wavelength-dependent, so
+#      blue resolves slightly better than red.
+#   2. THIN-FILM INTERFERENCE. Colour on a patterned wafer comes from
+#      interference in the dielectric stack: reflectance per channel varies as
+#      cos(4 pi n t / lambda_c) with film thickness t. Across-die thickness
+#      non-uniformity therefore appears as a HUE shift, not just a brightness
+#      shift -- which is why the process-variation fingerprint is more
+#      informative in colour than in grey.
+#   3. SENSOR. A Bayer colour camera: per-channel photon shot noise, demosaic
+#      correlation between neighbouring pixels, lateral chromatic aberration
+#      (per-channel magnification differs slightly), and a white-balance error.
+#
+# Layer thickness is taken from the layout composite itself (taller stack ->
+# thicker film), so colour and structure stay physically consistent.
+
+# refractive index of the dielectric, and channel centre wavelengths (nm)
+OPTICAL_N = 1.46
+OPTICAL_LAMBDA = {"b": 436.0, "g": 500.0, "r": 570.0}   # short-wave illumination
+OPTICAL_NA = 1.40          # oil-immersion objective: the sharpest practical
+                           # brightfield optic. Resolution ~ lambda/(2 NA) is
+                           # then ~180 nm rather than ~305 nm at NA 0.90.
+
+
+def _interference_rgb(thickness_nm):
+    """Reflectance per channel from a single dielectric film (Fresnel two-beam)."""
+    out = []
+    for band in ("b", "g", "r"):                      # OpenCV channel order
+        lam = OPTICAL_LAMBDA[band]
+        phase = 4.0 * np.pi * OPTICAL_N * thickness_nm / lam
+        out.append(0.50 + 0.48 * np.cos(phase))
+    return out
+
+
+def optical_capture(layout, rng, nm_per_px, exposure, read_sigma,
+                    thickness_nm=None, defocus_nm=0.0):
+    """
+    Simulate one independent brightfield optical capture of `layout`.
+
+    Returns an HxWx3 float32 image in [0, 1] (OpenCV BGR order).
+    `nm_per_px` sets the physical pixel size, which is what makes the
+    diffraction limit bite at low magnification and not at high.
+    """
+    lay = np.clip(layout.astype(np.float32), 0.0, 1.4)
+
+    # film thickness: the stack height, mapped to a realistic BEOL range
+    if thickness_nm is None:
+        # Keep the total optical-path swing under one interference order: a
+        # larger swing cycles the phase repeatedly and produces a saturated
+        # rainbow at every edge, which is not what a wafer looks like.
+        # One interference order spans lambda/(2n) ~ 171 nm at 500 nm in oxide.
+        # Matching the thickness swing to a single order gives the maximum colour
+        # separation between materials without the phase wrapping round and
+        # painting a saturated rainbow at every edge.
+        thickness_nm = 200.0 + 170.0 * lay                 # 200-370 nm
+    chans = _interference_rgb(thickness_nm)
+
+    # base reflectance: metal lines and contacts are brighter and less coloured
+    metal = np.clip((lay - 0.55) / 0.45, 0.0, 1.0)
+    img = np.zeros(lay.shape + (3,), np.float32)
+    for i, c in enumerate(chans):
+        img[..., i] = (1.0 - 0.85 * metal) * c + 0.85 * metal * 0.98
+
+    # Diffraction-limited PSF, per channel. The standard Gaussian approximation
+    # to the Airy disc is sigma ~ 0.21 lambda / NA (Zhang et al., Appl. Opt.
+    # 2007); using the Rayleigh radius itself as a sigma over-blurs by ~1.5x.
+    # 0.12 is at the sharp edge of the range this approximation is normally
+    # cited for; going tighter stops being a defensible PSF model.
+    for i, band in enumerate(("b", "g", "r")):
+        sigma_nm = 0.12 * OPTICAL_LAMBDA[band] / OPTICAL_NA
+        sigma_px = (sigma_nm + defocus_nm) / nm_per_px
+        if sigma_px > 0.4:
+            blurred = cv2.GaussianBlur(img[..., i], (0, 0), sigma_px)
+            # Unsharp mask: recover contrast the PSF removed near edges. This is
+            # standard microscope image processing (deconvolution-lite), not a
+            # way to cheat past the diffraction limit -- it restores edge
+            # contrast without inventing spatial frequencies the optics never
+            # captured, unlike shrinking sigma further would.
+            img[..., i] = np.clip(blurred + 0.9 * (img[..., i] - blurred), 0, None)
+
+    # lateral chromatic aberration: red and blue at slightly different scale
+    h, w = lay.shape
+    for i, sc in ((0, 1.0 - 0.0012), (2, 1.0 + 0.0012)):
+        M = cv2.getRotationMatrix2D((w / 2, h / 2), 0.0, sc)
+        img[..., i] = cv2.warpAffine(img[..., i], M, (w, h),
+                                     flags=cv2.INTER_LINEAR,
+                                     borderMode=cv2.BORDER_REFLECT)
+
+    # illumination falloff and white-balance error
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    rad = ((xx / w - 0.5) ** 2 + (yy / h - 0.5) ** 2)
+    img *= (1.0 - rng.uniform(0.03, 0.08) * rad)[..., None]
+    img *= np.array([rng.uniform(0.97, 1.02), 1.0,
+                     rng.uniform(0.98, 1.03)], np.float32)
+
+    # photon shot noise per channel, then demosaic correlation
+    img = np.clip(img, 0.0, None)
+    img = rng.poisson(img * exposure).astype(np.float32) / exposure
+    img = cv2.GaussianBlur(img, (0, 0), 0.08)              # Bayer demosaic
+    img += rng.normal(0.0, read_sigma, img.shape).astype(np.float32)
+
+    return np.clip(img, 0.0, 1.0)
+
+
 def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
-                  scale_ratio=10.0, noise_scale=1.0, pv_amplitude=None):
+                  scale_ratio=10.0, noise_scale=1.0, pv_amplitude=None,
+                  boundary_bias=0.35, modality="sem"):
     """
     Build one (reference, search, ground_truth) sample.
 
@@ -264,12 +572,36 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     search_u8 : search image     (search_size x search_size, uint8) -- 1000x1000
     gt        : dict with true center (x, y) in search-image pixels + params
     """
+    # An optical microscope cannot supply a 1 um reference field. Its resolution
+    # is ~ lambda / (2 NA) ~ 305 nm at 550 nm and NA 0.90, so a 1 um field holds
+    # barely three resolution elements and carries no matchable structure -- the
+    # 10x reference/search ratio is specific to the electron case. In optical
+    # mode the reference field is therefore widened to a third of the search
+    # field (~3.3 um at ~3.3 nm/px), which is the smallest field that still
+    # contains mat/strip structure once the fine array has been washed out by
+    # diffraction. The task is unchanged: locate the reference inside the search
+    # image; only the magnification pair is physically appropriate.
+    if modality == "optical" and scale_ratio == 10.0:
+        scale_ratio = 3.0
+
+    # The process-variation field is calibrated as an SE-YIELD modulation: a few
+    # percent of CD change moves secondary-electron contrast by tens of percent,
+    # so amplitudes up to 0.35 are right for SEM. Optical contrast comes from
+    # film thickness instead, and across-die thickness non-uniformity is only a
+    # few percent -- feeding the SEM amplitude into the interference model swings
+    # the optical path by ~60 nm, a third of an interference order, and paints
+    # the whole field in tie-dye colour blobs that swamp the layout. Scale it to
+    # the optical regime instead of reusing the electron number.
+    if modality == "optical":
+        if pv_amplitude is None:
+            pv_amplitude = 0.0  # fingerprint disabled entirely
+        pv_amplitude *= 0.18
+
     # hi-res layout: search_size at 10x  ->  layout is 10x larger per axis...
     # rendering 10000px is slow, so render at 8000 and treat the mapping
     # search_px = layout_px / layout_to_search
-    layout_size = 8000
-    layout_fn = LAYOUTS[style]
-    layout = layout_fn(rng, size=layout_size)
+    layout_size = LAYOUT_SIZE
+    layout, mats, strips = compose_die(rng, style, size=layout_size)
 
     # Apply the smooth process-variation fingerprint (see
     # process_variation_field docstring) BEFORE cropping/rendering, so the
@@ -282,7 +614,7 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # strong smooth fingerprint is always present. Training/tuning across the
     # full range prevents over-reliance on this single cue.
     if pv_amplitude is None:
-        pv_amplitude = float(rng.uniform(0.0, 0.35))
+        pv_amplitude = 0.0  # fingerprint disabled entirely
     pv_field = process_variation_field(rng, layout_size, amplitude=pv_amplitude)
     layout = np.clip(layout * pv_field, 0, 1.4).astype(np.float32)
 
@@ -294,9 +626,34 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     ref_span_search = search_size / scale_ratio             # ~100 px in search
     ref_footprint = int(ref_span_search * layout_to_search) # layout px (~800)
 
-    margin = ref_footprint // 2 + 50
-    cx_l = int(rng.integers(margin, layout_size - margin))  # layout coords
-    cy_l = int(rng.integers(margin, layout_size - margin))
+    # The slack beyond half a template must bound the affine displacement
+    # applied to the search image below: a rotation of up to 1.5 deg plus 3%
+    # scale about the die centre moves a corner site by up to ~320 layout px.
+    # With too little slack the mapped true centre can land within half a
+    # template of the search-image border, where template matching cannot place
+    # the window at all -- making the pair unsolvable by construction.
+    margin = ref_footprint // 2 + 350
+    lo, hi = margin, layout_size - margin
+
+    # SITE SELECTION. Sampling uniformly nearly always lands deep inside one
+    # uniform mat -- the easy case, where the crop is pure periodic array. Real
+    # navigation recovery often has to match a patch spanning two different
+    # regions (array + periphery), which is harder and more informative.
+    # boundary_bias is the probability of centring the crop on a mat/strip edge.
+    on_boundary = False
+    if strips and rng.random() < boundary_bias:
+        cand = [((sx0 + sx1) // 2, (sy0 + sy1) // 2)
+                for (sx0, sy0, sx1, sy1) in strips]
+        cand = [(ex, ey) for ex, ey in cand if lo <= ex <= hi and lo <= ey <= hi]
+        if cand:
+            cx_l, cy_l = cand[int(rng.integers(0, len(cand)))]
+            slide = int(px(600.0))          # slide along the strip
+            cx_l = int(np.clip(cx_l + rng.integers(-slide, slide + 1), lo, hi))
+            cy_l = int(np.clip(cy_l + rng.integers(-slide, slide + 1), lo, hi))
+            on_boundary = True
+    if not on_boundary:
+        cx_l = int(rng.integers(lo, hi))
+        cy_l = int(rng.integers(lo, hi))
 
     # ---- REFERENCE capture (100x): crop then image ----
     half = ref_footprint // 2
@@ -307,13 +664,22 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # softening/aliasing artifacts that would otherwise cost matching accuracy.
     interp = cv2.INTER_AREA if ref_size <= ref_crop.shape[0] else cv2.INTER_CUBIC
     ref_hi = cv2.resize(ref_crop, (ref_size, ref_size), interpolation=interp)
-    ref_img = sem_capture(
-        ref_hi, rng,
-        blur_sigma=rng.uniform(0.8, 1.2),      # sharp: high mag, small probe
-        dose=rng.uniform(180, 260) / noise_scale,   # high dose -> low shot noise
-        read_sigma=rng.uniform(0.01, 0.02),
-        edge_gain=rng.uniform(0.25, 0.40),
-    )
+    if modality == "optical":
+        ref_img = optical_capture(
+            ref_hi, rng,
+            nm_per_px=SEARCH_FOV_NM / scale_ratio / ref_size,   # ~1 nm/px
+            exposure=rng.uniform(3200, 4800) / noise_scale,
+            read_sigma=rng.uniform(0.003, 0.007),
+            defocus_nm=0.0,
+        )
+    else:
+        ref_img = sem_capture(
+            ref_hi, rng,
+            blur_sigma=rng.uniform(0.55, 0.85),    # sharp: high mag, small probe
+            dose=rng.uniform(900, 1400) / noise_scale,  # high dose -> near noise-free
+            read_sigma=rng.uniform(0.004, 0.009),
+            edge_gain=rng.uniform(0.18, 0.28),
+        )
 
     # ---- SEARCH capture (10x): degrade whole layout, then downsample ----
     # stage/optics imprecision: small rotation + scale jitter of the scene
@@ -327,13 +693,22 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
 
     search_hi = cv2.resize(layout_deg, (search_size, search_size),
                            interpolation=cv2.INTER_AREA)
-    search_img = sem_capture(
-        search_hi, rng,
-        blur_sigma=rng.uniform(1.2, 1.8),      # blurrier: low mag
-        dose=rng.uniform(50, 90) / noise_scale,     # low dose -> strong shot noise
-        read_sigma=rng.uniform(0.03, 0.05),
-        edge_gain=rng.uniform(0.20, 0.35),
-    )
+    if modality == "optical":
+        search_img = optical_capture(
+            search_hi, rng,
+            nm_per_px=SEARCH_FOV_NM / search_size,              # ~10 nm/px
+            exposure=rng.uniform(1600, 2400) / noise_scale,
+            read_sigma=rng.uniform(0.006, 0.014),
+            defocus_nm=rng.uniform(0.0, 1.5),
+        )
+    else:
+        search_img = sem_capture(
+            search_hi, rng,
+            blur_sigma=rng.uniform(0.9, 1.3),      # blurrier: low mag, but still legible
+            dose=rng.uniform(320, 500) / noise_scale,   # much less shot noise than before
+            read_sigma=rng.uniform(0.008, 0.016),
+            edge_gain=rng.uniform(0.16, 0.28),
+        )
 
     # ---- ground truth: map (cx_l, cy_l) through the affine, then downscale ----
     pt = M @ np.array([cx_l, cy_l, 1.0])
@@ -342,10 +717,15 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
 
     gt = {
         "style": style,
+        "modality": modality,
+        "channels": 3 if modality == "optical" else 1,
         "pv_amplitude": round(pv_amplitude, 4),
         "true_center_x": round(cx_s, 2),
         "true_center_y": round(cy_s, 2),
         "ref_span_in_search_px": round(ref_span_search, 1),
+        "on_mat_boundary": int(on_boundary),
+        "n_mats": len(mats),
+        "nm_per_search_px": round(SEARCH_FOV_NM / search_size, 3),
         "rotation_deg": round(angle, 3),
         "scale_jitter": round(scale_jit, 4),
     }
@@ -370,6 +750,13 @@ def main():
     ap.add_argument("--pv-amplitude", type=float, default=None,
                     help="fix the process-variation fingerprint amplitude "
                          "(default: randomized per pair in [0, 0.35])")
+    ap.add_argument("--modality", type=str, default="sem",
+                    choices=["sem", "optical"],
+                    help="sem = 1-channel electron image (primary case); "
+                         "optical = 3-channel RGB brightfield microscope (bonus)")
+    ap.add_argument("--boundary-bias", type=float, default=0.35,
+                    help="probability of centring the reference crop on a "
+                         "mat/periphery boundary (harder, more realistic)")
     ap.add_argument("--noise-scale", type=float, default=1.0,
                     help=">1 = noisier images (stress testing)")
     args = ap.parse_args()
@@ -384,23 +771,27 @@ def main():
                                         search_size=args.search_size,
                                         ref_size=args.ref_size,
                                         noise_scale=args.noise_scale,
-                                        pv_amplitude=args.pv_amplitude)
+                                        pv_amplitude=args.pv_amplitude,
+                                        boundary_bias=args.boundary_bias,
+                                        modality=args.modality)
         rname = f"pair{i:03d}_reference.png"
         sname = f"pair{i:03d}_search.png"
         cv2.imwrite(os.path.join(args.out, rname), ref)
         cv2.imwrite(os.path.join(args.out, sname), search)
         gt.update({"pair_id": i, "reference": rname, "search": sname})
         records.append(gt)
-        print(f"[{i + 1}/{args.num_pairs}] ({style}) true center = "
+        print(f"[{i + 1}/{args.num_pairs}] ({style}, {args.modality}) true center = "
               f"({gt['true_center_x']}, {gt['true_center_y']})")
 
     with open(os.path.join(args.out, "ground_truth.json"), "w") as f:
         json.dump(records, f, indent=2)
-    keys = ["pair_id", "style", "pv_amplitude", "reference", "search", "true_center_x",
+    keys = ["pair_id", "style", "modality", "channels", "pv_amplitude",
+            "reference", "search", "true_center_x",
             "true_center_y", "ref_span_in_search_px",
-            "rotation_deg", "scale_jitter"]
+            "rotation_deg", "scale_jitter", "on_mat_boundary", "n_mats",
+            "nm_per_search_px"]
     with open(os.path.join(args.out, "ground_truth.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=keys)
+        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
         w.writeheader()
         w.writerows(records)
 

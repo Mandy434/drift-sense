@@ -36,7 +36,10 @@ import time
 import cv2
 import numpy as np
 
-NOMINAL_SCALE_RATIO = 10.0     # reference is 100x, search is 10x
+NOMINAL_SCALE_RATIO = 10.0     # SEM: reference is 100x, search is 10x
+OPTICAL_SCALE_RATIO = 3.0      # optical: a diffraction-limited objective cannot
+                               # deliver a 1 um reference field, so the optical
+                               # reference/search pair is ~3x, not 10x
 SEARCH_BLUR = 1.5              # denoising sigmas (in pixels)
 TEMPLATE_BLUR = 1.0
 PEAK_MARGIN = 0.001            # combined-score margin for true ambiguity
@@ -48,15 +51,37 @@ FP_MAX_DEFICIT = 0.02          # max lattice deficit an override may have
 NMS_RADIUS = 12                # px, suppress duplicate detections of one site
 
 
-def load_gray(path):
-    img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+def load_image(path):
+    """
+    Load a capture as float32.
+
+    SEM captures are single-channel electron images; optical-microscope captures
+    are 3-channel RGB. Both are returned as-is rather than flattening colour to
+    grey, because on an optical image the across-die film-thickness variation
+    shows up largely as a HUE shift -- converting to luminance throws away the
+    most discriminative part of the fingerprint. Every stage below
+    (matchTemplate, Gaussian blur, affine warp, the fingerprint correlation)
+    operates on 1- and 3-channel arrays alike, so the pipeline itself is
+    modality-agnostic; OpenCV's normalised cross-correlation simply sums over
+    channels.
+    """
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if img is None:
         sys.exit(f"ERROR: cannot read image '{path}'")
+    if img.ndim == 3 and img.shape[2] == 4:            # drop an alpha channel
+        img = img[..., :3]
     return img.astype(np.float32)
 
 
+# kept for backwards compatibility with anything importing the old name
+def load_gray(path):
+    img = load_image(path)
+    return img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+
 def make_template(ref, size, angle):
-    """Shrink the reference to `size` px and rotate by `angle` degrees."""
+    """Shrink the reference to `size` px and rotate by `angle` degrees.
+    Works for 1- and 3-channel references alike."""
     tpl = cv2.resize(ref, (size, size), interpolation=cv2.INTER_AREA)
     if angle != 0.0:
         M = cv2.getRotationMatrix2D((size / 2, size / 2), angle, 1.0)
@@ -103,14 +128,22 @@ def subpixel(res, x, y):
     return x, y
 
 
-def localize(reference, search, verbose=False):
+def localize(reference, search, verbose=False, scale_ratio=None):
     t0 = time.time()
     search_f = cv2.GaussianBlur(search, (0, 0), SEARCH_BLUR)
 
-    nominal = int(round(search.shape[0] / NOMINAL_SCALE_RATIO))  # ~100 px
+    # The reference/search magnification pair differs between modalities: 10x for
+    # SEM, ~3x for optical (an optical objective cannot deliver a 1 um reference
+    # field). Rather than being told which, infer the footprint by scanning a
+    # wide range of template sizes and letting correlation decide.
+    ratio = OPTICAL_SCALE_RATIO if search.ndim == 3 else NOMINAL_SCALE_RATIO
+    if scale_ratio is not None:
+        ratio = scale_ratio
+    nominal = int(round(search.shape[0] / ratio))
 
     # ---- coarse grid over scale x rotation -------------------------------
-    sizes = [nominal + d for d in (-8, -4, 0, 4, 8)]
+    step = max(2, int(round(nominal * 0.04)))
+    sizes = [nominal + d * step for d in (-2, -1, 0, 1, 2)]
     angles = [-2.0, -1.0, 0.0, 1.0, 2.0]
     best = (-2.0, None, None, None)                 # score, size, angle, res
     for s in sizes:
@@ -121,7 +154,8 @@ def localize(reference, search, verbose=False):
 
     # ---- fine grid around the coarse optimum -----------------------------
     s0, a0 = best[1], best[2]
-    for s in range(s0 - 2, s0 + 3):
+    fine = max(1, step // 2)
+    for s in range(s0 - 2 * fine, s0 + 2 * fine + 1, fine):
         for a in np.arange(a0 - 0.75, a0 + 0.76, 0.25):
             if s == s0 and abs(a - a0) < 1e-9:
                 continue
@@ -148,7 +182,7 @@ def localize(reference, search, verbose=False):
     scored = []
     for px, py, pv in cand:
         patch = sea_lp[py:py + size, px:px + size]
-        if patch.shape != tpl_lp.shape:
+        if patch.shape != tpl_lp.shape:                # partial window at border
             continue
         p = patch - patch.mean()
         fp = float((p / (np.linalg.norm(p) + 1e-9) * tn).sum())
@@ -202,11 +236,18 @@ def main():
     ap.add_argument("--reference", required=True, help="path to reference image")
     ap.add_argument("--search", required=True, help="path to search image")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--scale-ratio", type=float, default=None,
+                    help="override the reference/search magnification ratio "
+                         "(default: 10 for SEM, 3 for 3-channel optical)")
     args = ap.parse_args()
 
-    ref = load_gray(args.reference)
-    sea = load_gray(args.search)
-    cx, cy = localize(ref, sea, verbose=args.verbose)
+    ref = load_image(args.reference)
+    sea = load_image(args.search)
+    if (ref.ndim == 3) != (sea.ndim == 3):
+        sys.exit("ERROR: reference and search must be the same modality "
+                 "(both 1-channel SEM or both 3-channel optical)")
+    cx, cy = localize(ref, sea, verbose=args.verbose,
+                      scale_ratio=args.scale_ratio)
     print(f"{cx:.2f} {cy:.2f}")
 
 
