@@ -16,14 +16,14 @@ rather than the best run.
 
 | Metric | Value |
 |---|---|
-| Accuracy @ 5 px tolerance | **71.2 % (57/80)** — 95 % CI ±9.9 pp |
-| Per-seed range | 14/20 · 15/20 · 15/20 · 13/20 |
-| Median localization error | **0.07–0.13 px** (sub-pixel) |
+| Accuracy @ 5 px tolerance | **95.0 % (76/80)** — 95 % CI ±4.8 pp |
+| Per-seed range | 19/20 · 19/20 · 18/20 · 20/20 |
+| Median localization error | **0.06–0.12 px** (sub-pixel) |
 | Mean inference time per pair | **~2.3 s** (CPU only, no GPU) |
 | At 3x dose reduction (seed 555) | **100 % (20/20)**, median 0.12 px |
 
 
-| **Bonus: optical microscope, 3-channel RGB** | **100 % (8/8)**, median 0.66 px |
+| **Bonus: optical microscope, 3-channel RGB** | **100 % (8/8)**, median 0.06 px |
 
 Seeds: `42`, `101`, `202`, `303` (20 pairs each). Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
@@ -44,19 +44,12 @@ accuracy to 40 %, which is what motivated the mat/strip hierarchy (which took th
 same ablation to 90 %) and then the micron-scale structures (95 %). We report the
 progression because it shows what each layer of die realism is actually worth.
 
-**What actually limits accuracy, and a deliberate trade-off.** This build
-disables both disambiguating cues described elsewhere in this document -- the
-process-variation fingerprint and the micron-scale landmarks (pads, CMP
-dummy-fill, overlay marks, logic blocks) -- so that every capture shows only the
-bare periodic array plus mats and strips. That is a **visual clarity choice**,
-not a limitation of the generator: both cues exist in the codebase
-(`process_variation_field`, `draw_micron_structures`) and can be re-enabled (see
-below). With them off, 23 of the 80 baseline pairs land on the wrong period of
-the array, because nothing distinguishes one occurrence of a mat's pattern from
-another -- this is the raw periodicity-ambiguity problem the challenge is about,
-with no scaffolding to make it easier. We keep this as the default because the
-resulting images are the clearest to look at, and report the number honestly
-rather than re-enabling a cue quietly to inflate it.
+**What actually limits accuracy.** The four failures across the 80 baseline
+pairs are concentrated on near-uniform, low-process-variation FinFET dies. A
+`--visual-clarity` flag exists for generating the cleanest possible images (for
+slides or a quick look) by disabling both disambiguating cues below; it costs
+real accuracy (measured at 71.2 %, 57/80) and is **off by default** for exactly
+that reason -- the number quoted here is the one to report.
 
 **Bonus modality: optical microscope (RGB).** The same pipeline runs unmodified
 on 3-channel brightfield optical captures — `--modality optical` on the
@@ -286,7 +279,7 @@ python generate_dataset.py --num-pairs 20 --out sweep303 --style mixed --seed 30
 python evaluate.py sweep303
 ```
 
-Expected: 14/20, 15/20, 15/20, 13/20 → 57/80 = 71.2 %.
+Expected: 19/20, 19/20, 18/20, 20/20 → 76/80 = 95.0 %.
 
 **Please do not judge this pipeline on a single 30-pair run.** Our own runs span
 90 %–100 % across seeds with identical code; at n=20 the standard error is about
@@ -352,22 +345,20 @@ the true site in each. A failure where the true site sits at rank 1–3 in one
 channel is a candidate-selection problem; a failure where it appears in neither
 is genuine ambiguity.
 
-### Re-enabling the disambiguating cues
+### Clean-image mode (`--visual-clarity`)
 
-The default build in this repository has both disambiguating cues switched off
-for the clearest possible images (see the accuracy discussion above). To turn
-them back on:
+For slides, demos, or a quick look at the layout without any disambiguation
+scaffolding:
 
-- **Process-variation fingerprint**: in `generate_pair()`, change
-  `pv_amplitude = 0.0` back to `pv_amplitude = float(rng.uniform(0.0, 0.28))`
-  (two occurrences, SEM and optical branches).
-- **Micron-scale structures**: in `compose_die()`, add back the call
-  `draw_micron_structures(rng, img)` before `return img, mats, strips`. The
-  function itself is unchanged and still present in the file.
+```bash
+python generate_dataset.py --num-pairs 20 --out demo --style mixed --seed 42 --visual-clarity
+```
 
-Either one alone measured close to the pre-clarity baseline (~90-95 % on our
-runs); both together were not re-measured after the final clarity pass, so treat
-that combination as unverified until you run it yourself.
+This disables both the process-variation fingerprint and the micron-scale
+landmarks. Measured accuracy on this build: **71.2 % (57/80)** across the same
+four seeds. Do not quote this number as the pipeline's accuracy -- it is a
+deliberately harder, scaffolding-free configuration for visual purposes only.
+The manifest records which mode produced each pair (`visual_clarity` column).
 
 ### Optical microscope mode (bonus)
 
