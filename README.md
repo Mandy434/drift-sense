@@ -225,7 +225,10 @@ Prints a single line to stdout — the predicted center:
 ```
 
 Add `--verbose` to also print the winning scale/rotation, candidate count and
-runtime to stderr (stdout stays a clean `x y` for machine parsing).
+runtime to stderr (stdout stays a clean `x y` for machine parsing). Add
+`--scale-ratio R` to force the assumed magnification ratio instead of having it
+read from the image's channel count (10.0 for SEM, 3.0 for optical) — useful if
+you generate a pair at a non-default `--search-size`/`--ref-size` combination.
 
 ### 3. Score the whole dataset
 
@@ -270,8 +273,10 @@ right the arrow is invisibly short, which is the honest outcome.
 | `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
 | `examples/` | Representative SEM success and failure cases |
 | `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
-| `requirements.txt` | Pinned dependencies |
+| `requirements.txt` | Pinned direct dependencies (4 packages) |
+| `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
 | `references.md` | Literature justification for every noise/augmentation choice |
+| `DriftSense_Submission_12slides.pptx` | Solution presentation — problem, approach, results, citations, limitations |
 
 **No model weights or training script are included — the pipeline is entirely
 classical and requires no training.**
@@ -405,7 +410,7 @@ Expected (on the environment in `requirements-freeze.txt`): 20/20, 19/20, 19/20,
 (per-pair prediction, ground truth, error and timing) and `results.png` (an
 accuracy-by-threshold chart) into each dataset directory.
 
-**Please do not judge this pipeline on a single 30-pair run.** Our own runs span
+**Please do not judge this pipeline on a single 20-pair run.** Our own runs span
 90 %–100 % across seeds with identical code; at n=20 the standard error is about
 5 pp. Any comparison between two variants needs several seeds to be
 meaningful — we learned this the hard way after a change that looked like a
