@@ -12,22 +12,51 @@ Navigation-Error Recovery, solved for highly periodic DRAM and FinFET layouts
 where classical single-peak template matching breaks down.
 
 **Results.** Reported over **four independent seeds, 80 pairs total** (mixed
-DRAM + FinFET, process-variation amplitude randomized per pair). A single 20-pair
-run varies between 80 % and 100 % purely by seed, so we report the aggregate
-rather than the best run.
+DRAM + FinFET, process-variation amplitude randomized per pair), measured with
+`evaluate.py` in the exact environment pinned in `requirements-freeze.txt`. A
+single 20-pair run varies noticeably by seed, so we report the aggregate rather
+than the best run — and these exact numbers are tied to that exact environment;
+see the note at the end of this section.
 
-| Metric | Value |
+| Threshold | Pass rate |
 |---|---|
-| Accuracy @ 5 px tolerance | **95.0 % (76/80)** — 95 % CI ±4.8 pp |
-| Of those, within 1 px | **76/76** — every success is sub-pixel |
-| Per-seed range | 19/20 · 19/20 · 18/20 · 20/20 |
-| Median localization error | **0.06–0.12 px** (sub-pixel) |
+| ≤ 5 px | **93.75 % (75/80)** |
+| ≤ 4 px | 93.75 % (75/80) |
+| ≤ 2 px | 91.25 % (73/80) |
+| ≤ 1 px (sub-pixel) | 90.0 % (72/80) |
+
+| Error statistic (px) | Value |
+|---|---|
+| Median | **0.10** |
+| Mean | 21.36 |
+| Worst-case | 721.22 |
+| Best-case | 0.01 |
 | Mean inference time per pair | **~2.3 s** (CPU only, no GPU) |
+| At 2x dose reduction (seed 77) | **100 % (20/20)**, median 0.08 px |
 | At 3x dose reduction (seed 555) | **100 % (20/20)**, median 0.12 px |
 | Bonus: optical microscope, 3-channel RGB | **100 % (8/8)**, median 0.55 px |
 
-Seeds: `42`, `101`, `202`, `303` (20 pairs each). Exact commands in
+Seeds: `42`, `101`, `202`, `303` (20 pairs each). Per-seed: 20/20, 19/20, 19/20,
+17/20. Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
+
+![Aggregate accuracy by pixel tolerance, 80 pairs across 4 seeds](accuracy_by_threshold.png)
+
+**Read the mean and the median together, not either alone.** The median (0.10 px)
+is what a typical pair looks like: sub-pixel, every time, on both structures. The
+mean (21.36 px) is dragged up by five catastrophic misses out of 80 — full lattice
+jumps, not near-tolerance overshoots. The worst of them, 721 px, lands the
+prediction on essentially a different part of the die entirely. We report both
+because a mean-only number would hide how good the typical case is, and a
+median-only number would hide that failures, when they happen, are not small.
+
+**These exact figures are pinned to `requirements-freeze.txt`.** Re-measuring
+this dataset after an OpenCV/NumPy version change previously shifted the
+5 px accuracy by one pair (95.0 % → 93.75 %) with the *identical* seeds and code
+— floating-point differences in blur/resize/warp implementations across library
+versions are enough to flip a borderline classification. This is exactly why the
+pip-freeze file exists: don't expect to reproduce these numbers on a different
+environment than the one it records.
 
 **Three independent cues, by design.** Beyond the periodic array the die carries
 (a) discrete sub-array **mats** separated by periphery **strips**, (b) micron-scale
@@ -45,8 +74,9 @@ accuracy to 40 %, which is what motivated the mat/strip hierarchy (which took th
 same ablation to 90 %) and then the micron-scale structures (95 %). We report the
 progression because it shows what each layer of die realism is actually worth.
 
-**What actually limits accuracy.** The four failures across the 80 baseline
-pairs are concentrated on near-uniform, low-process-variation FinFET dies. A
+**What actually limits accuracy.** The five failures across the 80 baseline
+pairs are concentrated on near-uniform, low-process-variation FinFET dies, and
+on dies where the fingerprint field itself happens to be weak. A
 `--visual-clarity` flag exists for generating the cleanest possible images (for
 slides or a quick look) by disabling both disambiguating cues; it costs real
 accuracy (measured at 71.2 %, 57/80) and is **off by default** for exactly that
@@ -66,16 +96,19 @@ detects the channel count and adapts. 8/8 within 5 px, median error 0.55 px.
 |---|---|
 | ![Optical default, reference](rgb/default_reference.png) | ![Optical clean, reference](rgb/clean_reference.png) |
 | ![Optical default, search](rgb/default_search.png) | ![Optical clean, search](rgb/clean_search.png) |
-| **95.0 %** (76/80) | **71.2 %** (57/80) |
+| **93.75 %** (75/80) | **71.2 %** (57/80) |
 
 Left column: mats carry the process-variation fingerprint (soft cloudy shading)
 and micron-scale landmarks (checkerboards, pads, stripes). Right column: both
 cues switched off, so the mats are flat and clean.
 
 This is an ablation, not decoration. The right-hand images look tidier — and
-cost 24 accuracy points. What reads to the eye as clutter is exactly what lets
+cost real accuracy. What reads to the eye as clutter is exactly what lets
 the localiser disambiguate one lattice period from another. The clean build is
-for slides only; **do not quote its number as the pipeline's accuracy.**
+for slides only; **do not quote its number as the pipeline's accuracy.** (The
+`71.2 %` figure predates the environment-pinning note above and has not been
+re-measured on the exact `requirements-freeze.txt` environment; treat it as
+indicative of the size of the gap, not as precise as the default-build number.)
 
 Colour is real 3-channel capture, not a colour map applied to a grey image — see
 the `applyColorMap` regression test in [Tests](#tests). Verify for yourself:
@@ -200,8 +233,13 @@ runtime to stderr (stdout stays a clean `x y` for machine parsing).
 python evaluate.py dataset
 ```
 
-Prints per-pair predicted vs. true center, error in pixels, and a summary with
-accuracy at 5 px tolerance, median error and mean time per pair.
+Prints per-pair predicted vs. true center and error in pixels, then a summary:
+pass rate at 5/4/2/1 px thresholds, mean/median/worst-case error, runtime with
+hardware and Python version and the timing method used. It also writes
+`dataset/results.csv` (per-pair prediction, ground truth, error, timing and
+generation metadata — reference path, search path, true and predicted x/y) and
+`dataset/results.png` (an accuracy-by-threshold chart). Use `--thresholds`,
+`--csv`, `--plot`, or `--no-plot` to change any of that.
 
 ### 4. Browse it in a browser (optional)
 
@@ -335,7 +373,10 @@ python generate_dataset.py --num-pairs 20 --out sweep303 --style mixed --seed 30
 python evaluate.py sweep303
 ```
 
-Expected: 19/20, 19/20, 18/20, 20/20 → 76/80 = 95.0 %.
+Expected (on the environment in `requirements-freeze.txt`): 20/20, 19/20, 19/20,
+17/20 → 75/80 = 93.75 % @ 5 px. `evaluate.py` also writes `results.csv`
+(per-pair prediction, ground truth, error and timing) and `results.png` (an
+accuracy-by-threshold chart) into each dataset directory.
 
 **Please do not judge this pipeline on a single 30-pair run.** Our own runs span
 90 %–100 % across seeds with identical code; at n=20 the standard error is about
@@ -500,9 +541,15 @@ guard the properties every reported number silently depends on:
 
 ## Limitations
 
-- Accuracy is 95 %, not 100 %. The residual failures are concentrated on
+- Accuracy is 93.75 %, not 100 %. The residual failures are concentrated on
   near-uniform, low-process-variation FinFET dies, where neither the lattice nor
   the fingerprint distinguishes one period from the next.
+- When it fails, it fails big, not small. The five sub-5px-tolerance failures in
+  the 80-pair baseline are full lattice-period jumps (8–721 px), not near-miss
+  overshoots — this pipeline does not degrade gracefully near its failure
+  boundary, it jumps to a different, equally-confident-looking site. A
+  deployment would need a confidence/rejection threshold on top of this, not
+  just a tighter tolerance.
 - Boundary-straddling crops are the weakest regime we measure: forcing every
   reference to span a mat/strip edge drops accuracy to 85 % (17/20). A crop
   centred on a boundary carries less of any one mat's fingerprint and fewer whole
@@ -514,6 +561,9 @@ guard the properties every reported number silently depends on:
   modality works and not enough for a precise accuracy figure.
 - Runtime is ~2.3 s per pair on CPU. That is fine for offline recovery and would
   need work for in-line, per-site use at tool throughput.
+- Exact accuracy figures are tied to the environment in `requirements-freeze.txt`;
+  library version differences (OpenCV/NumPy) can shift borderline pairs by a
+  point or two even with identical seeds and code — see the note in Results.
 
 ## Notes for reviewers
 
