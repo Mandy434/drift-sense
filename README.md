@@ -35,7 +35,8 @@ dummy-fill fields, coarse logic blocks — and (c) a smooth across-die
 **process-variation fingerprint**. The micron structures are non-periodic
 landmarks, so they break lattice ambiguity outright; they are also the only
 features above the ~180 nm diffraction limit of a light microscope, which is what
-makes the optical bonus modality tractable at all.
+makes the optical bonus modality tractable at all. Disabling the fingerprint
+entirely (`--pv-amplitude 0.0`) still leaves 19/20 — the landmarks carry it alone.
 
 **Earlier, weaker die models.** The first version of this generator drew one
 uniform array across the whole die; there, removing the fingerprint collapsed
@@ -357,8 +358,9 @@ python evaluate.py stress3x
 ```
 
 The 3x dose reduction gives 20/20 (100 %) with median error 0.12 px —
-indistinguishable from the baseline.
-<!-- TODO: paste the measured stress2x result here (2x dose reduction, seed 77). -->
+indistinguishable from the baseline. The 2x dose reduction gives **20/20 (100 %)**,
+median 0.08 px (seed 77). Noise is not what limits this pipeline; lattice ambiguity
+is.
 
 Worst-case check — disable across-die variation entirely, leaving the array
 genuinely ambiguous except for the micron-scale landmarks:
@@ -368,9 +370,14 @@ python generate_dataset.py --num-pairs 20 --out nofp --style mixed --seed 404 --
 python evaluate.py nofp
 ```
 
-<!-- TODO: paste the measured nofp result here. This is the number behind the
-     "removing the fingerprint still leaves 95 %" claim in the intro — either
-     report it or drop that claim. -->
+Result: **19/20 (95 %)**, median error 0.10 px (seed 404, one 20-pair run). The
+single failure missed by 42 px — a lattice period jump, which is exactly the
+failure mode the fingerprint exists to prevent. That accuracy holds without the
+fingerprint at all is the strongest evidence that the micron-scale landmarks
+carry the disambiguation on their own: they are non-periodic, so they break
+lattice ambiguity outright rather than by correlation. Note this is one seed, not
+the four-seed aggregate, so read it as "no measurable degradation" rather than as
+a precise 95 %.
 
 Boundary-straddling crops — force every reference to span a mat/strip edge:
 
@@ -379,7 +386,15 @@ python generate_dataset.py --num-pairs 20 --out boundary --style mixed --seed 90
 python evaluate.py boundary
 ```
 
-<!-- TODO: paste the measured boundary result here. -->
+Result: **17/20 (85 %)**, median error 0.13 px (seed 909, one 20-pair run). This is
+the weakest number we measure, and it is the one worth reading closely. Forcing
+*every* reference to straddle a mat/strip edge is deliberately harsher than the
+default 0.35 fraction: a crop centred on a boundary contains less of any single
+mat, so it carries less of the mat's distinguishing fingerprint and fewer whole
+micron-scale landmarks — exactly the two cues the pipeline relies on. Two of the
+three failures were ~100 px lattice period jumps; the third missed by 8.5 px, just
+outside tolerance. Median error on the 17 successes stayed sub-pixel, so the
+failures are discrete mis-selections rather than general degradation.
 
 ### Per-pair diagnostics
 
@@ -484,6 +499,10 @@ guard the properties every reported number silently depends on:
 - Accuracy is 95 %, not 100 %. The residual failures are concentrated on
   near-uniform, low-process-variation FinFET dies, where neither the lattice nor
   the fingerprint distinguishes one period from the next.
+- Boundary-straddling crops are the weakest regime we measure: forcing every
+  reference to span a mat/strip edge drops accuracy to 85 % (17/20). A crop
+  centred on a boundary carries less of any one mat's fingerprint and fewer whole
+  landmarks, so both disambiguating cues are weaker at once.
 - Results are on synthetic data. The imaging models are literature-calibrated
   (see `references.md`) but no real SEM or optical captures were available to
   validate against.
