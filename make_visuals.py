@@ -1,40 +1,106 @@
-import cv2, json, numpy as np, subprocess
+#!/usr/bin/env python3
+"""
+Render a side-by-side (reference | search) visual for one pair: the search
+image gets a green box at the true center and a red cross at the localiser's
+prediction, so a reader can see the match (or miss) at a glance.
 
-def make_visual(d, idx, outname):
-    r = json.load(open(f"{d}/ground_truth.json"))[idx]
-    ref = cv2.imread(f"{d}/{r['reference']}", 0)
-    sea = cv2.imread(f"{d}/{r['search']}", 0)
-    out = subprocess.run(["python", "localize.py", "--reference", f"{d}/{r['reference']}",
-                          "--search", f"{d}/{r['search']}"], capture_output=True, text=True).stdout.split()
-    cx, cy = float(out[0]), float(out[1])
-    tx, ty = r["true_center_x"], r["true_center_y"]
-    err = np.hypot(cx - tx, cy - ty)
+Usage
+-----
+    python make_visuals.py --dataset dataset  --idx 0  --out examples/dram_success.png
+    python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
 
-    sea_c = cv2.cvtColor(sea, cv2.COLOR_GRAY2BGR)
-    s = 50
-    cv2.rectangle(sea_c, (int(tx - s), int(ty - s)), (int(tx + s), int(ty + s)), (0, 220, 0), 2)
-    cv2.drawMarker(sea_c, (int(round(cx)), int(round(cy))), (0, 0, 255), cv2.MARKER_CROSS, 30, 2)
-    ref_c = cv2.cvtColor(cv2.resize(ref, (1000, 1000), interpolation=cv2.INTER_NEAREST), cv2.COLOR_GRAY2BGR)
-    cv2.putText(ref_c, "REFERENCE (100x)", (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
-    cv2.putText(sea_c, f"SEARCH (10x)  green=true  red=predicted  err={err:.2f}px",
-                (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
-    combo = np.hstack([ref_c, np.full((1000, 20, 3), 40, np.uint8), sea_c])
-    cv2.imwrite(outname, combo)
-    print(f"{outname}: err={err:.2f}px")
+Or let it pick automatically within one dataset:
+    python make_visuals.py --dataset dataset --auto success --out examples/success_case.png
+    python make_visuals.py --dataset dataset --auto failure --out examples/failure_case.png
 
-# pair 0 = success example (change index if you want a different one)
-make_visual("stress3", 0, "success_case.png")
+`--auto failure` runs every pair in the dataset and renders the worst one --
+useful for a dataset that actually contains a failure. The default 20-pair
+baseline seeds mostly don't (that's the point of a 93.75% accuracy figure);
+the documented worst-case (721 px, seed 202 pair 12 -- see README "Results")
+is reproduced with:
 
-# find the worst pair from your stress3 for the "honest failure" example
+    python generate_dataset.py --num-pairs 20 --out sweep202 --style mixed --seed 202
+    python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
+"""
+import argparse
+import json
+import subprocess
+
+import cv2
 import numpy as np
-recs = json.load(open("stress3/ground_truth.json"))
-errs = []
-for i, r in enumerate(recs):
-    out = subprocess.run(["python", "localize.py", "--reference", f"stress3/{r['reference']}",
-                          "--search", f"stress3/{r['search']}"], capture_output=True, text=True).stdout.split()
-    cx, cy = float(out[0]), float(out[1])
-    err = np.hypot(cx - r["true_center_x"], cy - r["true_center_y"])
-    errs.append(err)
-worst_idx = int(np.argmax(errs))
-print(f"worst pair = {worst_idx}, err = {errs[worst_idx]:.2f}px")
-make_visual("stress3", worst_idx, "failure_case.png")
+
+
+def _predict(dataset, rec):
+    out = subprocess.run(
+        ["python", "localize.py",
+         "--reference", f"{dataset}/{rec['reference']}",
+         "--search", f"{dataset}/{rec['search']}"],
+        capture_output=True, text=True).stdout.split()
+    return float(out[0]), float(out[1])
+
+
+def render(dataset, idx, outname):
+    rec = json.load(open(f"{dataset}/ground_truth.json"))[idx]
+    ref = cv2.imread(f"{dataset}/{rec['reference']}", cv2.IMREAD_UNCHANGED)
+    sea = cv2.imread(f"{dataset}/{rec['search']}", cv2.IMREAD_UNCHANGED)
+    if ref is None or sea is None:
+        raise SystemExit(f"couldn't read pair {idx} from '{dataset}/' -- "
+                          f"did you generate it first?")
+
+    cx, cy = _predict(dataset, rec)
+    tx, ty = rec["true_center_x"], rec["true_center_y"]
+    err = float(np.hypot(cx - tx, cy - ty))
+
+    if sea.ndim == 2:
+        sea = cv2.cvtColor(sea, cv2.COLOR_GRAY2BGR)
+    if ref.ndim == 2:
+        ref = cv2.cvtColor(ref, cv2.COLOR_GRAY2BGR)
+
+    s = 50
+    cv2.rectangle(sea, (int(tx - s), int(ty - s)), (int(tx + s), int(ty + s)),
+                  (0, 220, 0), 2)
+    cv2.drawMarker(sea, (int(round(cx)), int(round(cy))), (0, 0, 255),
+                    cv2.MARKER_CROSS, 30, 2)
+
+    ref_disp = cv2.resize(ref, (1000, 1000), interpolation=cv2.INTER_NEAREST)
+    cv2.putText(ref_disp, "REFERENCE (100x)", (20, 45),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+    cv2.putText(sea, f"SEARCH (10x)  green=true  red=predicted  err={err:.2f}px",
+                (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+
+    combo = np.hstack([ref_disp, np.full((1000, 20, 3), 40, np.uint8), sea])
+    cv2.imwrite(outname, combo)
+    print(f"{outname}: pair {idx} ({rec.get('style')}, {rec.get('modality')}), "
+          f"err={err:.2f}px  ({'OK' if err <= 5.0 else 'FAIL'} @ 5px)")
+
+
+def auto_pick(dataset, which):
+    recs = json.load(open(f"{dataset}/ground_truth.json"))
+    errs = []
+    for r in recs:
+        cx, cy = _predict(dataset, r)
+        errs.append(float(np.hypot(cx - r["true_center_x"], cy - r["true_center_y"])))
+    idx = int(np.argmin(errs)) if which == "success" else int(np.argmax(errs))
+    print(f"auto-picked pair {idx} ({which}), err={errs[idx]:.2f}px")
+    return idx
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--dataset", required=True, help="dataset directory to read the pair from")
+    ap.add_argument("--idx", type=int, default=None, help="pair index to render")
+    ap.add_argument("--auto", choices=["success", "failure"], default=None,
+                     help="instead of --idx, scan the whole dataset and pick "
+                          "the best (success) or worst (failure) pair")
+    ap.add_argument("--out", required=True, help="output PNG path")
+    args = ap.parse_args()
+
+    if args.idx is None and args.auto is None:
+        raise SystemExit("pass either --idx N or --auto {success,failure}")
+    idx = args.idx if args.idx is not None else auto_pick(args.dataset, args.auto)
+    render(args.dataset, idx, args.out)
+
+
+if __name__ == "__main__":
+    main()
