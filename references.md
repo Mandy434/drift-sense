@@ -92,6 +92,57 @@ identical cell-to-cell.
 
 ---
 
+## Bonus modality: optical microscope (RGB)
+
+The optical path in `generate_dataset.py --modality optical` models four
+physical effects. These are standard textbook optics rather than anything
+specialised, so the sources below are the canonical references for each.
+
+**[C7] Thin-film interference colour**
+A patterned die is a stack of dielectric films over silicon. Reflectance at
+each wavelength follows the multi-layer interference condition, so across-die
+film *thickness* non-uniformity [C6] appears in a colour capture as a *hue*
+shift rather than a brightness shift. This is why the localiser correlates all
+three channels jointly instead of converting to luminance first — flattening
+to grey discards the chroma-carried fingerprint.
+- Macleod, H.A., *Thin-Film Optical Filters*, 4th ed., CRC Press, 2010 —
+  multi-layer reflectance and the thickness-dependence of reflected colour.
+- Hecht, E., *Optics*, 5th ed., Pearson, 2017, Ch. 9 (Interference) —
+  thin-film interference and the reflectance condition behind our per-channel
+  `cos(4*pi*n*t/lambda_c)` term.
+
+**[C8] Diffraction-limited imaging and the Airy point-spread function**
+An optical objective is diffraction-limited, not probe-limited as in SEM. The
+image of a point is an Airy pattern whose radius scales as `lambda / NA`; we
+approximate it by a Gaussian with `sigma ~ 0.21 * lambda / NA`. This is why
+the 36–96 nm array is *correctly invisible* in optical mode at ~180 nm
+resolution (NA 1.40), and why the optical reference field has to be a third of
+the search field rather than a tenth.
+- Born, M., Wolf, E., *Principles of Optics*, 7th (expanded) ed., Cambridge
+  University Press, 1999, Ch. 8–9 — Airy diffraction pattern, Rayleigh
+  resolution criterion, and the `lambda / (2 NA)` limit.
+- Goodman, J.W., *Introduction to Fourier Optics*, 3rd ed., McGraw-Hill, 2005
+  — incoherent imaging as convolution with an intensity PSF, which is the form
+  our per-channel blur takes.
+
+**[C9] Lateral chromatic aberration**
+The three colour channels are not imaged at identical magnification, so a
+feature is displaced slightly differently in R, G and B. We model this as a
+small per-channel radial scale difference.
+- Hecht, E., *Optics*, op. cit., Ch. 6 (Aberrations) — lateral (transverse)
+  chromatic aberration and its radial dependence.
+
+**[C10] Bayer colour-filter array and demosaic correlation**
+A single-sensor colour camera samples one colour per pixel behind a mosaic
+filter and interpolates the rest, which correlates noise between neighbouring
+pixels and between channels. Our optical noise is therefore not independent
+per channel, as it would be on a three-sensor camera.
+- Bayer, B.E., "Color imaging array," US Patent 3,971,065, 1976 — the
+  colour-filter mosaic whose interpolation produces the inter-channel
+  correlation we model.
+
+---
+
 ## Localization pipeline design choices
 
 **Coarse-to-fine multi-scale/rotation NCC search**
@@ -114,8 +165,14 @@ peaks within a small margin of the best score, then applying the
 challenge's own disambiguation rule (choose the candidate closest to the
 center of the search image), directly implements the specification rather
 than relying on classical template matching's single-max assumption, which
-is exactly what makes plain template matching fail on periodic layouts (see
-Slide 5).
+is exactly what makes plain template matching fail on periodic layouts.
+
+**Channel-count-driven scale ratio and joint colour correlation**
+The nominal magnification ratio is read from the channel count: 10x for a
+single-channel SEM pair, 3x for a three-channel optical pair (see [C8] for why
+the optical field cannot be a tenth). Colour pairs are correlated across all
+three channels jointly rather than converted to luminance, because on an
+optical capture the film-thickness fingerprint lives largely in hue [C7].
 
 **High-confidence fingerprint override (process-variation verification)**
 Because the process-variation field [C6] is a smooth, low-frequency
@@ -138,6 +195,6 @@ correlation surface without re-running the search at finer resolution.
 
 *Note: all citations above describe the general physical/statistical
 phenomena and classical techniques used to design this pipeline; exact
-publication details (volume/page numbers where abbreviated) should be
-verified against the publisher's record before final submission if your
-institution requires strict citation formatting.*
+publication details (volume/page numbers and editions where abbreviated)
+should be verified against the publisher's record before final submission if
+your institution requires strict citation formatting.*
