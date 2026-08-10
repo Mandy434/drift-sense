@@ -19,6 +19,7 @@ rather than the best run.
 | Metric | Value |
 |---|---|
 | Accuracy @ 5 px tolerance | **95.0 % (76/80)** — 95 % CI ±4.8 pp |
+| Of those, within 1 px | **76/76** — every success is sub-pixel |
 | Per-seed range | 19/20 · 19/20 · 18/20 · 20/20 |
 | Median localization error | **0.06–0.12 px** (sub-pixel) |
 | Mean inference time per pair | **~2.3 s** (CPU only, no GPU) |
@@ -144,6 +145,10 @@ git clone https://github.com/Mandy434/drift-sense
 cd drift-sense
 pip install -r requirements.txt
 ```
+
+`requirements.txt` pins the four direct dependencies. `requirements-freeze.txt` is a
+full `pip freeze` of the environment every number in this README was measured in,
+for exact reproduction.
 
 ### 1. Generate a dataset (with ground truth)
 
@@ -462,7 +467,6 @@ the same fingerprint field — the hardest realistic form of navigation error.
 ## Tests
 
 ```bash
-pip install pytest
 pytest tests/ -q
 ```
 
