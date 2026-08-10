@@ -2,6 +2,8 @@
 
 SEMICON India Hackathon 2026 · Track 2 (Applied Materials) submission.
 
+**Team Maverick** · Idea ID 3 · Mandeep Singh Rawat, Vinay
+
 Given a **Reference image** (a small site captured at 100x magnification) and a
 **Search image** (a 1000x1000 view of the same die region captured at 10x), this
 pipeline locates where the reference pattern appears inside the search image and
@@ -21,9 +23,7 @@ rather than the best run.
 | Median localization error | **0.06–0.12 px** (sub-pixel) |
 | Mean inference time per pair | **~2.3 s** (CPU only, no GPU) |
 | At 3x dose reduction (seed 555) | **100 % (20/20)**, median 0.12 px |
-
-
-| **Bonus: optical microscope, 3-channel RGB** | **100 % (8/8)**, median 0.06 px |
+| Bonus: optical microscope, 3-channel RGB | **100 % (8/8)**, median 0.55 px |
 
 Seeds: `42`, `101`, `202`, `303` (20 pairs each). Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
@@ -35,8 +35,7 @@ dummy-fill fields, coarse logic blocks — and (c) a smooth across-die
 **process-variation fingerprint**. The micron structures are non-periodic
 landmarks, so they break lattice ambiguity outright; they are also the only
 features above the ~180 nm diffraction limit of a light microscope, which is what
-makes the optical bonus modality tractable at all. Disabling the fingerprint
-entirely still leaves 95 %.
+makes the optical bonus modality tractable at all.
 
 **Earlier, weaker die models.** The first version of this generator drew one
 uniform array across the whole die; there, removing the fingerprint collapsed
@@ -47,26 +46,54 @@ progression because it shows what each layer of die realism is actually worth.
 **What actually limits accuracy.** The four failures across the 80 baseline
 pairs are concentrated on near-uniform, low-process-variation FinFET dies. A
 `--visual-clarity` flag exists for generating the cleanest possible images (for
-slides or a quick look) by disabling both disambiguating cues below; it costs
-real accuracy (measured at 71.2 %, 57/80) and is **off by default** for exactly
-that reason -- the number quoted here is the one to report.
+slides or a quick look) by disabling both disambiguating cues; it costs real
+accuracy (measured at 71.2 %, 57/80) and is **off by default** for exactly that
+reason — the number quoted above is the one to report.
 
-**Bonus modality: optical microscope (RGB).** The same pipeline runs unmodified
-on 3-channel brightfield optical captures — `--modality optical` on the
-generator, no flag at all on the localiser, which detects the channel count and
-adapts. 8/8 within 5 px, median error 0.55 px.
+---
 
-Two things are physically different in the optical case and both are modelled
-rather than faked by colourising a grey image:
+## Bonus modality: optical microscope (RGB)
 
-- **The 10x reference/search pair does not survive.** Optical resolution is
-  about `lambda / (2 NA)` — roughly 305 nm at 550 nm and NA 0.90 — so a 1 um
-  reference field contains barely three resolution elements and no matchable
-  structure at all. Our first attempt produced a literally featureless green
-  square. The optical reference field is therefore a third of the search field
-  (~3.3 um), the smallest field that still contains mat/strip structure once the
-  36–96 nm array has been washed out by diffraction. The fine array is invisible
-  in optical mode, as it must be.
+The same pipeline runs unmodified on 3-channel brightfield optical captures —
+`--modality optical` on the generator, no flag at all on the localiser, which
+detects the channel count and adapts. 8/8 within 5 px, median error 0.55 px.
+
+### Default build vs. `--visual-clarity` build
+
+| Default build (both cues on) | `--visual-clarity` build (cues off) |
+|---|---|
+| ![Optical default, reference](rgb/default_reference.png) | ![Optical clean, reference](rgb/clean_reference.png) |
+| ![Optical default, search](rgb/default_search.png) | ![Optical clean, search](rgb/clean_search.png) |
+| **95.0 %** (76/80) | **71.2 %** (57/80) |
+
+Left column: mats carry the process-variation fingerprint (soft cloudy shading)
+and micron-scale landmarks (checkerboards, pads, stripes). Right column: both
+cues switched off, so the mats are flat and clean.
+
+This is an ablation, not decoration. The right-hand images look tidier — and
+cost 24 accuracy points. What reads to the eye as clutter is exactly what lets
+the localiser disambiguate one lattice period from another. The clean build is
+for slides only; **do not quote its number as the pipeline's accuracy.**
+
+Colour is real 3-channel capture, not a colour map applied to a grey image — see
+the `applyColorMap` regression test in [Tests](#tests). Verify for yourself:
+
+```bash
+python -c "import cv2, numpy as np; im = cv2.imread('rgb/default_search.png'); print(im.shape); print('grey' if np.allclose(im[:,:,0], im[:,:,1]) else 'RGB ok')"
+```
+
+### What is physically different in the optical case
+
+Both differences are modelled rather than faked:
+
+- **The 10x reference/search pair does not survive.** Optical resolution is about
+  `lambda / (2 NA)`. Our first attempt used a dry objective (NA 0.90), giving
+  roughly 305 nm at 550 nm — a 1 um reference field then contains barely three
+  resolution elements and no matchable structure at all, and it produced a
+  literally featureless green square. The optical reference field is therefore a
+  third of the search field (~3.3 um), the smallest field that still contains
+  mat/strip structure once the 36–96 nm array has been washed out by diffraction.
+  The fine array is invisible in optical mode, as it must be.
 - **Colour is interference, not decoration.** Reflectance per channel follows
   `cos(4*pi*n*t/lambda_c)` for dielectric thickness `t`, so across-die thickness
   non-uniformity appears as a *hue* shift. The fingerprint is therefore carried
@@ -75,17 +102,23 @@ rather than faked by colourising a grey image:
   aberration, per-channel diffraction radius, Bayer demosaic correlation and a
   white-balance error are modelled too.
 
-The optical case is modelled with an oil-immersion objective (NA 1.40) under
-short-wave illumination, giving ~180 nm resolution. The Airy disc is approximated
-by a Gaussian with sigma ~ 0.21 lambda / NA; using the Rayleigh radius directly
-as a sigma over-blurs by about 1.5x, which is worth stating because it visibly
-changes the images and cost a factor of two in median error before we caught it.
-Median error is still several times worse than SEM (0.55 px vs ~0.1 px): with no
+The reported optical results use an oil-immersion objective (NA 1.40) under
+short-wave illumination, giving the ~180 nm resolution quoted throughout this
+README. The Airy disc is approximated by a Gaussian with sigma ~ 0.21 lambda /
+NA; using the Rayleigh radius directly as a sigma over-blurs by about 1.5x, which
+is worth stating because it visibly changes the images and cost a factor of two
+in median error before we caught it.
+
+Median error is several times worse than SEM (0.55 px vs ~0.1 px): with no
 resolvable fine array there are far fewer sharp edges to pin the correlation peak
 to, so sub-pixel refinement has less to work with. Accuracy is nonetheless as
 high as the SEM case, because the mat/strip/landmark layout is coarse enough that
 period-jump ambiguity largely disappears — mats are individually distinguishable
-by their interference colour and by the metrology marks they carry.
+by their interference colour and by the metrology marks they carry. Note that
+this is 8 pairs, not 80; treat it as a demonstration that the modality works, not
+as a precision accuracy estimate.
+
+---
 
 **A generator bug we found and fixed.** Reference sites were originally drawn
 with a border margin computed *before* the affine degradation was applied. A
@@ -106,7 +139,7 @@ CPU-only pipeline that is deterministic and reproducible.
 Requires Python 3.8 or newer.
 
 ```bash
-git clone <YOUR-REPO-URL>
+git clone https://github.com/Mandy434/drift-sense
 cd drift-sense
 pip install -r requirements.txt
 ```
@@ -132,8 +165,11 @@ Options:
 | `--out DIR` | `dataset` | output directory |
 | `--style {dram,finfet,mixed}` | `dram` | die architecture (`mixed` alternates) |
 | `--seed N` | random | RNG seed for reproducibility |
+| `--modality {sem,optical}` | `sem` | imaging model; `optical` writes 3-channel RGB (bonus) |
 | `--noise-scale F` | 1.0 | `>1` produces noisier images (robustness testing) |
 | `--pv-amplitude F` | randomized | fix across-die process-variation strength (`0.0` = purely periodic, hardest case) |
+| `--boundary-bias F` | 0.35 | fraction of reference sites forced to straddle a mat/strip edge |
+| `--visual-clarity` | off | disable the fingerprint and micron landmarks for cleaner-looking images (costs accuracy — slides only) |
 | `--search-size N` | 1000 | search image dimension in pixels |
 | `--ref-size N` | 1000 | reference image dimension in pixels (spec: 1000x1000, same as search) |
 
@@ -161,21 +197,35 @@ python evaluate.py dataset
 Prints per-pair predicted vs. true center, error in pixels, and a summary with
 accuracy at 5 px tolerance, median error and mean time per pair.
 
+### 4. Browse it in a browser (optional)
+
+```bash
+python app.py
+```
+
+A Gradio app: pick an architecture, seed and pair count, generate SEM and
+optical pairs, and see the localiser's prediction overlaid against ground truth
+with the measured error in pixels per pair. Green box is ground truth, red cross
+is the prediction, and the arrow between them is the error — if the prediction is
+right the arrow is invisibly short, which is the honest outcome.
+
 ---
 
 ## Repository contents
 
-| File | Purpose |
+| Path | Purpose |
 |---|---|
-| `generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM imaging model, ground truth) |
+| `generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM and optical imaging models, ground truth) |
 | `localize.py` | **Localization inference script** — the file to run on test data |
 | `evaluate.py` | Batch evaluation harness (accuracy, error, timing) |
-| `make_visuals.py` | Renders side-by-side success/failure visualizations |
 | `app.py` | Gradio browser app: generate a dataset, browse SEM and optical pairs, and see the localiser's measured drift vector per pair |
+| `make_visuals.py` | Renders side-by-side success/failure visualizations |
 | `generate_family_dataset.py` | Sample-family generator: many reference sites from **one** die, so a wrong answer lands on a sibling cell rather than a different die |
 | `visualize_pipeline.py` | Renders the SEM imaging chain stage by stage (layout → PV field → edge brightening → blur → shot noise → read noise) |
-| `tests/test_drift_sense.py` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (25 tests) |
 | `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
+| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (25 tests) |
+| `examples/` | Representative SEM success and failure cases |
+| `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `requirements.txt` | Pinned dependencies |
 | `references.md` | Literature justification for every noise/augmentation choice |
 
@@ -289,8 +339,7 @@ meaningful — we learned this the hard way after a change that looked like a
 
 ### Robustness checks
 
-All three were re-measured after the margin fix and are quoted in the results
-table above.
+All of the checks below were re-run after the margin fix.
 
 **On the `--noise-scale` flag.** It divides the electron dose, and shot noise
 scales with the square root of dose, so `--noise-scale 3.0` is a 3x *dose*
@@ -307,20 +356,21 @@ python generate_dataset.py --num-pairs 20 --out stress3x --style mixed --seed 55
 python evaluate.py stress3x
 ```
 
-Gives 20/20 (100 %) with median error 0.12 px — indistinguishable from the
-baseline.
+The 3x dose reduction gives 20/20 (100 %) with median error 0.12 px —
+indistinguishable from the baseline.
+<!-- TODO: paste the measured stress2x result here (2x dose reduction, seed 77). -->
 
-Worst-case check — disable across-die variation entirely (hardest regime, where
-the array becomes genuinely ambiguous):
+Worst-case check — disable across-die variation entirely, leaving the array
+genuinely ambiguous except for the micron-scale landmarks:
 
 ```bash
 python generate_dataset.py --num-pairs 20 --out nofp --style mixed --seed 404 --pv-amplitude 0.0
 python evaluate.py nofp
 ```
 
-This build has no process-variation field and no micron-scale landmarks by
-design (see below), so this flag has no further effect -- there is nothing left
-to disable.
+<!-- TODO: paste the measured nofp result here. This is the number behind the
+     "removing the fingerprint still leaves 95 %" claim in the intro — either
+     report it or drop that claim. -->
 
 Boundary-straddling crops — force every reference to span a mat/strip edge:
 
@@ -328,6 +378,8 @@ Boundary-straddling crops — force every reference to span a mat/strip edge:
 python generate_dataset.py --num-pairs 20 --out boundary --style mixed --seed 909 --boundary-bias 1.0
 python evaluate.py boundary
 ```
+
+<!-- TODO: paste the measured boundary result here. -->
 
 ### Per-pair diagnostics
 
@@ -356,9 +408,13 @@ python generate_dataset.py --num-pairs 20 --out demo --style mixed --seed 42 --v
 
 This disables both the process-variation fingerprint and the micron-scale
 landmarks. Measured accuracy on this build: **71.2 % (57/80)** across the same
-four seeds. Do not quote this number as the pipeline's accuracy -- it is a
+four seeds. Do not quote this number as the pipeline's accuracy — it is a
 deliberately harder, scaffolding-free configuration for visual purposes only.
 The manifest records which mode produced each pair (`visual_clarity` column).
+
+Note that this flag also shifts the RNG stream, so a given seed does not produce
+the same layout with the flag on and off; the two builds are comparable in
+aggregate accuracy, not pair by pair.
 
 ### Optical microscope mode (bonus)
 
@@ -422,6 +478,19 @@ guard the properties every reported number silently depends on:
   luminance to RGB and must fail to reconstruct the image. False colour applied to
   a grey capture would reconstruct almost exactly, so this test fails loudly if
   the optical path ever degenerates into `applyColorMap`.
+
+## Limitations
+
+- Accuracy is 95 %, not 100 %. The residual failures are concentrated on
+  near-uniform, low-process-variation FinFET dies, where neither the lattice nor
+  the fingerprint distinguishes one period from the next.
+- Results are on synthetic data. The imaging models are literature-calibrated
+  (see `references.md`) but no real SEM or optical captures were available to
+  validate against.
+- The optical bonus is demonstrated on 8 pairs, which is enough to show the
+  modality works and not enough for a precise accuracy figure.
+- Runtime is ~2.3 s per pair on CPU. That is fine for offline recovery and would
+  need work for in-line, per-site use at tool throughput.
 
 ## Notes for reviewers
 
