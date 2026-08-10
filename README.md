@@ -229,7 +229,7 @@ right the arrow is invisibly short, which is the honest outcome.
 | `generate_family_dataset.py` | Sample-family generator: many reference sites from **one** die, so a wrong answer lands on a sibling cell rather than a different die |
 | `visualize_pipeline.py` | Renders the SEM imaging chain stage by stage (layout → PV field → edge brightening → blur → shot noise → read noise) |
 | `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
-| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (25 tests) |
+| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
 | `examples/` | Representative SEM success and failure cases |
 | `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `requirements.txt` | Pinned dependencies |
@@ -470,7 +470,7 @@ the same fingerprint field — the hardest realistic form of navigation error.
 pytest tests/ -q
 ```
 
-25 tests, about 95 s. These are contract tests rather than accuracy tests — they
+26 tests, about 45 s. These are contract tests rather than accuracy tests — they
 guard the properties every reported number silently depends on:
 
 - **Ground-truth integrity** — the reference is downscaled and correlated against
