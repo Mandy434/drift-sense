@@ -328,6 +328,33 @@ length rather than a pixel count.
 
 See `references.md` for the citation behind each of these choices.
 
+## Success and failure examples
+
+Both rendered with `make_visuals.py`: the search image carries a green box at
+the true center and a red cross at the localiser's prediction, so a match (or a
+miss) is visible at a glance.
+
+**Success** — seed 42, pair 0. Error 0.06 px.
+
+![Success case: reference and search with true (green) and predicted (red) center](examples/success_case.png)
+
+**Failure** — seed 202, pair 12. Error 721 px. The reference is a near-featureless
+crop — flat, almost no process-variation texture — which is exactly the
+regime the fingerprint cue exists to disambiguate and, when it's this weak,
+can't:
+
+![Failure case: a near-featureless reference gives the localiser nothing to lock onto](examples/failure_case.png)
+
+Reproduce either with:
+
+```bash
+python generate_dataset.py --num-pairs 20 --out dataset  --style mixed --seed 42
+python make_visuals.py --dataset dataset  --idx 0  --out examples/success_case.png
+
+python generate_dataset.py --num-pairs 20 --out sweep202 --style mixed --seed 202
+python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
+```
+
 ## How the localization algorithm works
 
 1. **Denoise** — mild Gaussian blur on both images suppresses the independent
