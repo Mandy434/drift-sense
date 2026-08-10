@@ -5,6 +5,12 @@ Drift-Sense Synthetic Dataset Generator (DRAM-style)
 Generates (Reference, Search) image pairs for the Navigation-Error
 Recovery challenge (SEMICON India Hackathon 2026 - Applied Materials track).
 
+Citations
+---------
+Inline [C1]-[C10] markers below point at the numbered entries in
+references.md, which justifies every noise, geometry and augmentation choice
+against published literature.
+
 Model summary
 -------------
 1. LAYOUT: large binary DRAM-style layout at high resolution
@@ -86,7 +92,7 @@ FINFET_PRESETS = {                 # fin_pitch_nm, fin_width_nm, cpp_nm
 
 def draw_dram_region(rng, img, x0, y0, x1, y1, preset=None):
     """
-    Draw a DRAM 6F^2 sub-array (a "mat") into img[y0:y1, x0:x1].
+    Draw a DRAM 6F^2 sub-array (a "mat") into img[y0:y1, x0:x1].  [C4]
 
     Geometry follows the folded-bitline 6F^2 cell: word-line pitch 2F,
     bit-line pitch 3F, and storage-node contacts on a checkerboard subset of
@@ -155,7 +161,7 @@ def draw_dram_region(rng, img, x0, y0, x1, y1, preset=None):
 
 def draw_finfet_region(rng, img, x0, y0, x1, y1, preset=None):
     """
-    Draw a FinFET standard-cell block into img[y0:y1, x0:x1].
+    Draw a FinFET standard-cell block into img[y0:y1, x0:x1].  [C5]
 
     Parallel vertical fins at the fin pitch, crossed by horizontal gate rows at
     the contacted poly pitch (CPP), with source/drain contacts on a checkerboard
@@ -368,7 +374,7 @@ def process_variation_field(rng, size, grid=20, amplitude=0.35):
     """
     Smooth, spatially-correlated intensity modulation field, modeling
     across-die CD (critical-dimension) and etch-uniformity variation from
-    litho/etch process non-uniformity [see references.md]. This gives every
+    litho/etch process non-uniformity [C6]. This gives every
     neighborhood of the array a locally unique brightness "fingerprint" that
     survives the 10x downsample -- independent of the specific periodic
     structure (DRAM or FinFET) -- which is what makes local navigation sites
@@ -401,16 +407,16 @@ def sem_capture(layout, rng, blur_sigma, dose, read_sigma, edge_gain):
     Simulate one independent SEM capture of `layout` (float32 [0,1]).
 
     Steps (physical order):
-      1. edge brightening  : SE yield increases at topography edges
-      2. beam blur         : Gaussian probe PSF
-      3. shot noise        : Poisson, dose = mean electrons at signal 1.0
+      1. edge brightening  : SE yield increases at topography edges  [C1]
+      2. beam blur         : Gaussian probe PSF                        [C3]
+      3. shot noise        : Poisson, dose = mean electrons at signal 1.0  [C2]
       4. read noise        : additive Gaussian
       5. gain/offset drift : mild brightness & contrast variation
     A fresh noise realization is drawn every call - never reused.
     """
     img = layout.copy()
 
-    # 1. edge brightening
+    # 1. edge brightening [C1]
     gx = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
     edges = np.sqrt(gx ** 2 + gy ** 2)
@@ -419,10 +425,10 @@ def sem_capture(layout, rng, blur_sigma, dose, read_sigma, edge_gain):
         edges /= edges.max()
     img = np.clip(img + edge_gain * edges, 0, 1.4)
 
-    # 2. beam blur
+    # 2. beam blur [C3]
     img = cv2.GaussianBlur(img, (0, 0), blur_sigma)
 
-    # 3. Poisson shot noise (independent every call)
+    # 3. Poisson shot noise (independent every call) [C2]
     img = rng.poisson(img * dose).astype(np.float32) / dose
 
     # 4. Gaussian read noise (independent every call)
@@ -449,12 +455,14 @@ def sem_capture(layout, rng, blur_sigma, dose, read_sigma, edge_gain):
 # different in three ways that matter for matching, and all three are modelled
 # here rather than colourising a grey image:
 #
-#   1. DIFFRACTION LIMIT. Resolution is ~ lambda / (2 NA); at lambda = 550 nm and
-#      NA = 0.90 that is ~305 nm, so the fine array (36-96 nm pitch here) is far
+#   1. DIFFRACTION LIMIT [C8]. Resolution is ~ lambda / (2 NA). Our first
+#      attempt used a dry objective (NA 0.90, ~305 nm at 550 nm); the reported
+#      results use the oil-immersion NA 1.40 below, giving ~180 nm. Either way
+#      the fine array (36-96 nm pitch here) is far
 #      below the limit and simply does not resolve. Only mid-scale structure --
 #      mats, strips, block edges -- survives. The PSF is wavelength-dependent, so
 #      blue resolves slightly better than red.
-#   2. THIN-FILM INTERFERENCE. Colour on a patterned wafer comes from
+#   2. THIN-FILM INTERFERENCE [C7]. Colour on a patterned wafer comes from
 #      interference in the dielectric stack: reflectance per channel varies as
 #      cos(4 pi n t / lambda_c) with film thickness t. Across-die thickness
 #      non-uniformity therefore appears as a HUE shift, not just a brightness
@@ -476,7 +484,7 @@ OPTICAL_NA = 1.40          # oil-immersion objective: the sharpest practical
 
 
 def _interference_rgb(thickness_nm):
-    """Reflectance per channel from a single dielectric film (Fresnel two-beam)."""
+    """Reflectance per channel from a single dielectric film (Fresnel two-beam). [C7]"""
     out = []
     for band in ("b", "g", "r"):                      # OpenCV channel order
         lam = OPTICAL_LAMBDA[band]
@@ -515,8 +523,8 @@ def optical_capture(layout, rng, nm_per_px, exposure, read_sigma,
         img[..., i] = (1.0 - 0.85 * metal) * c + 0.85 * metal * 0.98
 
     # Diffraction-limited PSF, per channel. The standard Gaussian approximation
-    # to the Airy disc is sigma ~ 0.21 lambda / NA (Zhang et al., Appl. Opt.
-    # 2007); using the Rayleigh radius itself as a sigma over-blurs by ~1.5x.
+    # to the Airy disc is sigma ~ 0.21 lambda / NA [C8]; using the Rayleigh
+    # radius itself as a sigma over-blurs by ~1.5x.
     # 0.12 is at the sharp edge of the range this approximation is normally
     # cited for; going tighter stops being a defensible PSF model.
     for i, band in enumerate(("b", "g", "r")):
@@ -531,7 +539,7 @@ def optical_capture(layout, rng, nm_per_px, exposure, read_sigma,
             # captured, unlike shrinking sigma further would.
             img[..., i] = np.clip(blurred + 0.9 * (img[..., i] - blurred), 0, None)
 
-    # lateral chromatic aberration: red and blue at slightly different scale
+    # lateral chromatic aberration: red and blue at slightly different scale [C9]
     h, w = lay.shape
     for i, sc in ((0, 1.0 - 0.0012), (2, 1.0 + 0.0012)):
         M = cv2.getRotationMatrix2D((w / 2, h / 2), 0.0, sc)
@@ -549,7 +557,7 @@ def optical_capture(layout, rng, nm_per_px, exposure, read_sigma,
     # photon shot noise per channel, then demosaic correlation
     img = np.clip(img, 0.0, None)
     img = rng.poisson(img * exposure).astype(np.float32) / exposure
-    img = cv2.GaussianBlur(img, (0, 0), 0.08)              # Bayer demosaic
+    img = cv2.GaussianBlur(img, (0, 0), 0.08)         # Bayer demosaic [C10]
     img += rng.normal(0.0, read_sigma, img.shape).astype(np.float32)
 
     return np.clip(img, 0.0, 1.0)
@@ -575,7 +583,7 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     gt        : dict with true center (x, y) in search-image pixels + params
     """
     # An optical microscope cannot supply a 1 um reference field. Its resolution
-    # is ~ lambda / (2 NA) ~ 305 nm at 550 nm and NA 0.90, so a 1 um field holds
+    # is ~ lambda / (2 NA) ~ 180 nm at NA 1.40, so a 1 um field holds
     # barely three resolution elements and carries no matchable structure -- the
     # 10x reference/search ratio is specific to the electron case. In optical
     # mode the reference field is therefore widened to a third of the search
@@ -792,7 +800,7 @@ def main():
                     help="reference image pixel size (spec: 1000x1000, same as search)")
     ap.add_argument("--pv-amplitude", type=float, default=None,
                     help="fix the process-variation fingerprint amplitude "
-                         "(default: randomized per pair in [0, 0.35])")
+                         "(default: randomized per pair in [0, 0.28])")
     ap.add_argument("--modality", type=str, default="sem",
                     choices=["sem", "optical"],
                     help="sem = 1-channel electron image (primary case); "
@@ -806,7 +814,7 @@ def main():
                     help="disable the process-variation fingerprint and the "
                          "micron-scale landmarks for the cleanest possible "
                          "images (demos, slides). Costs real accuracy -- "
-                         "measured at ~71%% vs ~90-94%% with these cues on. "
+                         "measured at 71.2%% vs 95.0%% with these cues on. "
                          "Off by default: the default build is the one whose "
                          "accuracy should be quoted in the submission.")
     args = ap.parse_args()
