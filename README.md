@@ -278,7 +278,7 @@ right the arrow is invisibly short, which is the honest outcome.
 | `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
 | `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
 | `examples/` | Representative SEM success and failure cases |
-| `dataset_sample/` | 4 raw, unannotated reference/search pairs (seed 42, pairs 0-3) — what the generator's actual output looks like, no overlays |
+| `dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `dataset/results.csv` was scored against, so every claimed number is directly image-verifiable |
 | `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `requirements.txt` | Pinned direct dependencies (4 packages) |
 | `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
