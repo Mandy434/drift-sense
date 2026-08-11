@@ -1,0 +1,5 @@
+pair_id,style,modality,channels,visual_clarity,scale_ratio,noise_scale,pv_amplitude,reference,search,true_center_x,true_center_y,ref_span_in_search_px,rotation_deg,scale_jitter,on_mat_boundary,n_mats,nm_per_search_px,ref_blur_sigma,ref_dose,ref_read_sigma,ref_edge_gain,search_blur_sigma,search_dose,search_read_sigma,search_edge_gain,ref_exposure,search_exposure,search_defocus_nm
+0,dram,sem,1,False,10.0,1.0,0.1637,pair000_reference.png,pair000_search.png,505.65,320.72,100.0,0.415,0.9748,1,9,10.0,0.5942,1355.44,0.00441,0.2094,1.0749,478.03,0.01226,0.2323,,,
+1,finfet,sem,1,False,10.0,1.0,0.2215,pair001_reference.png,pair001_search.png,660.12,744.28,100.0,1.418,0.9756,0,9,10.0,0.7718,1048.08,0.00418,0.1948,0.932,367.01,0.00986,0.276,,,
+2,dram,sem,1,False,10.0,1.0,0.24,pair002_reference.png,pair002_search.png,771.87,777.97,100.0,-1.143,1.0239,1,16,10.0,0.8395,1021.22,0.00473,0.2477,1.0365,447.56,0.0154,0.2454,,,
+3,finfet,sem,1,False,10.0,1.0,0.1503,pair003_reference.png,pair003_search.png,442.79,474.68,100.0,0.091,0.9965,1,4,10.0,0.6343,1179.76,0.00899,0.1928,1.0803,426.84,0.01472,0.2323,,,
