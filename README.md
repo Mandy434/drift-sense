@@ -493,8 +493,9 @@ python generate_dataset.py --num-pairs 20 --out ratio11 --style mixed --seed 55 
 python evaluate.py ratio11
 ```
 
-Result: **20/20 (100 %) at both 9:1 and 11:1** (seed 55), median error 0.06 px and
-0.09 px respectively — no measurable accuracy cost outside the nominal 10:1.
+Result: **20/20 (100 %) at both 9:1 and 11:1** (seed 55, measured on the pinned
+environment), median error 0.06 px and 0.10 px respectively — no measurable
+accuracy cost outside the nominal 10:1.
 Worth being precise about what changed to get here: the localiser's coarse scale
 search was widened from ±8 % to ±12 % around its assumed nominal, so a 9:1 or 11:1
 pair (whose true template size sits ~9–11 % off nominal) falls inside the search
