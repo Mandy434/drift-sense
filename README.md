@@ -194,7 +194,11 @@ This writes, into `dataset/`:
 - `pairNNN_reference.png` — reference image (100x capture)
 - `pairNNN_search.png` — search image (10x capture, 1000x1000)
 - `ground_truth.json` / `ground_truth.csv` — true center `(x, y)` of the
-  reference inside each search image, plus the rotation/scale error applied
+  reference inside each search image, plus every per-pair generation parameter:
+  style, modality, scale ratio, rotation/scale jitter, process-variation
+  amplitude, mat-boundary flag, and the actual noise values drawn for that pair
+  (dose, blur sigma, read sigma, edge gain for SEM; exposure, read sigma,
+  defocus for optical) — not just the ranges they were drawn from.
 
 Options:
 
@@ -206,6 +210,7 @@ Options:
 | `--seed N` | random | RNG seed for reproducibility |
 | `--modality {sem,optical}` | `sem` | imaging model; `optical` writes 3-channel RGB (bonus) |
 | `--noise-scale F` | 1.0 | `>1` produces noisier images (robustness testing) |
+| `--scale-ratio F` | 10.0 | reference:search magnification ratio (spec: nominal 10, robustness testing may probe ~9-11) |
 | `--pv-amplitude F` | randomized | fix across-die process-variation strength (`0.0` = purely periodic, hardest case) |
 | `--boundary-bias F` | 0.35 | fraction of reference sites forced to straddle a mat/strip edge |
 | `--visual-clarity` | off | disable the fingerprint and micron landmarks for cleaner-looking images (costs accuracy — slides only) |
@@ -473,6 +478,32 @@ micron-scale landmarks — exactly the two cues the pipeline relies on. Two of t
 three failures were ~100 px lattice period jumps; the third missed by 8.5 px, just
 outside tolerance. Median error on the 17 successes stayed sub-pixel, so the
 failures are discrete mis-selections rather than general degradation.
+
+**Scale-ratio sweep (9:1–11:1).** The problem statement calls out approximately
+9:1–11:1 as a possible robustness range beyond the nominal 10:1. `--scale-ratio`
+lets the generator produce a pair at any ratio; the localiser is never told the
+true ratio and must find it by search, exactly as it would on an unlabelled test
+image:
+
+```bash
+python generate_dataset.py --num-pairs 20 --out ratio9  --style mixed --seed 55 --scale-ratio 9.0
+python evaluate.py ratio9
+
+python generate_dataset.py --num-pairs 20 --out ratio11 --style mixed --seed 55 --scale-ratio 11.0
+python evaluate.py ratio11
+```
+
+Result: **20/20 (100 %) at both 9:1 and 11:1** (seed 55), median error 0.06 px and
+0.09 px respectively — no measurable accuracy cost outside the nominal 10:1.
+Worth being precise about what changed to get here: the localiser's coarse scale
+search was widened from ±8 % to ±12 % around its assumed nominal, so a 9:1 or 11:1
+pair (whose true template size sits ~9–11 % off nominal) falls inside the search
+window by explicit design rather than by relying on normalized cross-correlation's
+incidental tolerance to a small scale mismatch. In testing, the old ±8 % window
+already scored 100 %/90 % on this same sweep — so the failure mode this widening
+targets is a design gap the data didn't happen to expose, not a bug it fixed. We
+widened it anyway: relying on an unmeasured margin of a scoring function is a
+weaker guarantee than an explicit design range that covers the specified spec.
 
 ### Per-pair diagnostics
 
