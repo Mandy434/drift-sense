@@ -121,7 +121,7 @@ the search field rather than a tenth.
 - Born, M., Wolf, E., *Principles of Optics*, 7th (expanded) ed., Cambridge
   University Press, 1999, Ch. 8–9 — Airy diffraction pattern, Rayleigh
   resolution criterion, and the `lambda / (2 NA)` limit.
-- Goodman, J.W., *Introduction to Fourier Optics*, 3rd ed., McGraw-Hill, 2005
+- Goodman, J.W., *Introduction to Fourier Optics*, 3rd ed., Roberts & Company Publishers, 2005
   — incoherent imaging as convolution with an intensity PSF, which is the form
   our per-channel blur takes.
 
