@@ -593,7 +593,10 @@ the same fingerprint field — the hardest realistic form of navigation error.
 pytest tests/ -q
 ```
 
-26 tests, about 45 s. These are contract tests rather than accuracy tests — they
+26 tests, about 45 s (20 `def test_...` functions; 3 are parametrized across
+styles/seeds, so `pytest --collect-only` reports 26 collected cases — count the
+functions with `grep` and you'll get 20, which is not a discrepancy). These are
+contract tests rather than accuracy tests — they
 guard the properties every reported number silently depends on:
 
 - **Ground-truth integrity** — the reference is downscaled and correlated against
