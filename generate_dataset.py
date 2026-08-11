@@ -715,21 +715,33 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     interp = cv2.INTER_AREA if ref_size <= ref_crop.shape[0] else cv2.INTER_CUBIC
     ref_hi = cv2.resize(ref_crop, (ref_size, ref_size), interpolation=interp)
     if modality == "optical":
+        ref_exposure = rng.uniform(3200, 4800) / noise_scale
+        ref_read_sigma = rng.uniform(0.003, 0.007)
         ref_img = optical_capture(
             ref_hi, rng,
             nm_per_px=SEARCH_FOV_NM / scale_ratio / ref_size,   # ~1 nm/px
-            exposure=rng.uniform(3200, 4800) / noise_scale,
-            read_sigma=rng.uniform(0.003, 0.007),
+            exposure=ref_exposure,
+            read_sigma=ref_read_sigma,
             defocus_nm=0.0,
         )
+        ref_noise = {"ref_exposure": round(ref_exposure, 2),
+                    "ref_read_sigma": round(ref_read_sigma, 5)}
     else:
+        ref_blur_sigma = rng.uniform(0.55, 0.85)    # sharp: high mag, small probe
+        ref_dose = rng.uniform(900, 1400) / noise_scale  # high dose -> near noise-free
+        ref_read_sigma = rng.uniform(0.004, 0.009)
+        ref_edge_gain = rng.uniform(0.18, 0.28)
         ref_img = sem_capture(
             ref_hi, rng,
-            blur_sigma=rng.uniform(0.55, 0.85),    # sharp: high mag, small probe
-            dose=rng.uniform(900, 1400) / noise_scale,  # high dose -> near noise-free
-            read_sigma=rng.uniform(0.004, 0.009),
-            edge_gain=rng.uniform(0.18, 0.28),
+            blur_sigma=ref_blur_sigma,
+            dose=ref_dose,
+            read_sigma=ref_read_sigma,
+            edge_gain=ref_edge_gain,
         )
+        ref_noise = {"ref_blur_sigma": round(ref_blur_sigma, 4),
+                    "ref_dose": round(ref_dose, 2),
+                    "ref_read_sigma": round(ref_read_sigma, 5),
+                    "ref_edge_gain": round(ref_edge_gain, 4)}
 
     # ---- SEARCH capture (10x): degrade whole layout, then downsample ----
     # stage/optics imprecision: small rotation + scale jitter of the scene
@@ -744,21 +756,35 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     search_hi = cv2.resize(layout_deg, (search_size, search_size),
                            interpolation=cv2.INTER_AREA)
     if modality == "optical":
+        search_exposure = rng.uniform(1600, 2400) / noise_scale
+        search_read_sigma = rng.uniform(0.006, 0.014)
+        search_defocus = rng.uniform(0.0, 1.5)
         search_img = optical_capture(
             search_hi, rng,
             nm_per_px=SEARCH_FOV_NM / search_size,              # ~10 nm/px
-            exposure=rng.uniform(1600, 2400) / noise_scale,
-            read_sigma=rng.uniform(0.006, 0.014),
-            defocus_nm=rng.uniform(0.0, 1.5),
+            exposure=search_exposure,
+            read_sigma=search_read_sigma,
+            defocus_nm=search_defocus,
         )
+        search_noise = {"search_exposure": round(search_exposure, 2),
+                        "search_read_sigma": round(search_read_sigma, 5),
+                        "search_defocus_nm": round(search_defocus, 3)}
     else:
+        search_blur_sigma = rng.uniform(0.9, 1.3)   # blurrier: low mag, but still legible
+        search_dose = rng.uniform(320, 500) / noise_scale  # much less shot noise than before
+        search_read_sigma = rng.uniform(0.008, 0.016)
+        search_edge_gain = rng.uniform(0.16, 0.28)
         search_img = sem_capture(
             search_hi, rng,
-            blur_sigma=rng.uniform(0.9, 1.3),      # blurrier: low mag, but still legible
-            dose=rng.uniform(320, 500) / noise_scale,   # much less shot noise than before
-            read_sigma=rng.uniform(0.008, 0.016),
-            edge_gain=rng.uniform(0.16, 0.28),
+            blur_sigma=search_blur_sigma,
+            dose=search_dose,
+            read_sigma=search_read_sigma,
+            edge_gain=search_edge_gain,
         )
+        search_noise = {"search_blur_sigma": round(search_blur_sigma, 4),
+                        "search_dose": round(search_dose, 2),
+                        "search_read_sigma": round(search_read_sigma, 5),
+                        "search_edge_gain": round(search_edge_gain, 4)}
 
     # ---- ground truth: map (cx_l, cy_l) through the affine, then downscale ----
     pt = M @ np.array([cx_l, cy_l, 1.0])
@@ -770,6 +796,8 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
         "modality": modality,
         "channels": 3 if modality == "optical" else 1,
         "visual_clarity": visual_clarity,
+        "scale_ratio": scale_ratio,
+        "noise_scale": noise_scale,
         "pv_amplitude": round(pv_amplitude, 4),
         "true_center_x": round(cx_s, 2),
         "true_center_y": round(cy_s, 2),
@@ -780,6 +808,8 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
         "rotation_deg": round(angle, 3),
         "scale_jitter": round(scale_jit, 4),
     }
+    gt.update(ref_noise)
+    gt.update(search_noise)
     return (np.uint8(ref_img * 255), np.uint8(search_img * 255), gt)
 
 
@@ -810,6 +840,11 @@ def main():
                          "mat/periphery boundary (harder, more realistic)")
     ap.add_argument("--noise-scale", type=float, default=1.0,
                     help=">1 = noisier images (stress testing)")
+    ap.add_argument("--scale-ratio", type=float, default=10.0,
+                    help="reference:search magnification ratio (spec: nominal "
+                         "10, robustness testing may probe ~9-11). Optical "
+                         "modality ignores this unless explicitly overridden "
+                         "away from the SEM default of 10.0.")
     ap.add_argument("--visual-clarity", action="store_true",
                     help="disable the process-variation fingerprint and the "
                          "micron-scale landmarks for the cleanest possible "
@@ -838,6 +873,7 @@ def main():
         ref, search, gt = generate_pair(rng, style=style,
                                         search_size=args.search_size,
                                         ref_size=args.ref_size,
+                                        scale_ratio=args.scale_ratio,
                                         noise_scale=args.noise_scale,
                                         pv_amplitude=args.pv_amplitude,
                                         boundary_bias=args.boundary_bias,
@@ -855,12 +891,15 @@ def main():
     with open(os.path.join(args.out, "ground_truth.json"), "w") as f:
         json.dump(records, f, indent=2)
     keys = ["pair_id", "style", "modality", "channels", "visual_clarity",
-            "pv_amplitude", "reference", "search", "true_center_x",
-            "true_center_y", "ref_span_in_search_px",
+            "scale_ratio", "noise_scale", "pv_amplitude", "reference", "search",
+            "true_center_x", "true_center_y", "ref_span_in_search_px",
             "rotation_deg", "scale_jitter", "on_mat_boundary", "n_mats",
-            "nm_per_search_px"]
+            "nm_per_search_px",
+            "ref_blur_sigma", "ref_dose", "ref_read_sigma", "ref_edge_gain",
+            "search_blur_sigma", "search_dose", "search_read_sigma", "search_edge_gain",
+            "ref_exposure", "search_exposure", "search_defocus_nm"]
     with open(os.path.join(args.out, "ground_truth.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore", restval="")
         w.writeheader()
         w.writerows(records)
 

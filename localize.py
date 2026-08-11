@@ -142,8 +142,12 @@ def localize(reference, search, verbose=False, scale_ratio=None):
     nominal = int(round(search.shape[0] / ratio))
 
     # ---- coarse grid over scale x rotation -------------------------------
+    # +/-3 steps of ~4% covers +/-12%, comfortably spanning the 9:1-11:1
+    # scale-ratio robustness range the problem statement calls out (a
+    # search image generated at scale_ratio=11 sits ~9% below nominal;
+    # at scale_ratio=9, ~11% above) without being told the true ratio.
     step = max(2, int(round(nominal * 0.04)))
-    sizes = [nominal + d * step for d in (-2, -1, 0, 1, 2)]
+    sizes = [nominal + d * step for d in (-3, -2, -1, 0, 1, 2, 3)]
     angles = [-2.0, -1.0, 0.0, 1.0, 2.0]
     best = (-2.0, None, None, None)                 # score, size, angle, res
     for s in sizes:
