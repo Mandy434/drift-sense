@@ -565,7 +565,8 @@ def optical_capture(layout, rng, nm_per_px, exposure, read_sigma,
 
 def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
                   scale_ratio=10.0, noise_scale=1.0, pv_amplitude=None,
-                  boundary_bias=0.35, modality="sem", visual_clarity=False):
+                  boundary_bias=0.35, modality="sem", visual_clarity=False,
+                  max_rotation_deg=1.5):
     """
     Build one (reference, search, ground_truth) sample.
 
@@ -650,12 +651,24 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     ref_footprint = int(ref_span_search * layout_to_search) # layout px (~800)
 
     # The slack beyond half a template must bound the affine displacement
-    # applied to the search image below: a rotation of up to 1.5 deg plus 3%
-    # scale about the die centre moves a corner site by up to ~320 layout px.
-    # With too little slack the mapped true centre can land within half a
-    # template of the search-image border, where template matching cannot place
-    # the window at all -- making the pair unsolvable by construction.
-    margin = ref_footprint // 2 + 350
+    # applied to the search image below: a rotation of up to max_rotation_deg
+    # plus 3% scale about the die centre moves a corner site by up to
+    # 2*half_diag*sin(max_rotation_deg/2) + half_diag*0.03 layout px (~320 at
+    # the spec default of 1.5 deg). With too little slack the mapped true
+    # centre can land within half a template of the search-image border,
+    # where template matching cannot place the window at all -- making the
+    # pair unsolvable by construction. At the default 1.5 deg this must stay
+    # numerically identical to the original fixed value (350) so every
+    # already-verified seed's site selection is unchanged; only a
+    # --max-rotation-deg override recomputes it.
+    if abs(max_rotation_deg - 1.5) < 1e-9:
+        rot_slack = 350
+    else:
+        half_diag = layout_size / 2 * np.sqrt(2)
+        rot_slack = int(np.ceil(
+            2 * half_diag * np.sin(np.radians(max_rotation_deg) / 2)
+            + half_diag * 0.03)) + 35
+    margin = ref_footprint // 2 + rot_slack
 
     # Site SELECTION uses a margin computed from the WIDEST possible reference
     # field (optical's 3x ratio, not whichever modality this call happens to
@@ -671,7 +684,10 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
     # index), not on modality.
     widest_ref_span = search_size / 3.0
     widest_ref_footprint = int(widest_ref_span * layout_to_search)
-    sel_margin = widest_ref_footprint // 2 + 350
+    # Reuses rot_slack computed above (depends only on max_rotation_deg
+    # and layout_size, not on scale_ratio), so this stays 350 at the
+    # default and grows automatically for a larger --max-rotation-deg.
+    sel_margin = widest_ref_footprint // 2 + rot_slack
     lo, hi = sel_margin, layout_size - sel_margin
 
     # SITE SELECTION. Sampling uniformly nearly always lands deep inside one
@@ -745,7 +761,7 @@ def generate_pair(rng, style="dram", search_size=1000, ref_size=1000,
 
     # ---- SEARCH capture (10x): degrade whole layout, then downsample ----
     # stage/optics imprecision: small rotation + scale jitter of the scene
-    angle = rng.uniform(-1.5, 1.5)                       # degrees
+    angle = rng.uniform(-max_rotation_deg, max_rotation_deg)  # degrees
     scale_jit = rng.uniform(0.97, 1.03)
     M = cv2.getRotationMatrix2D((layout_size / 2, layout_size / 2),
                                 angle, scale_jit)
@@ -845,6 +861,11 @@ def main():
                          "10, robustness testing may probe ~9-11). Optical "
                          "modality ignores this unless explicitly overridden "
                          "away from the SEM default of 10.0.")
+    ap.add_argument("--max-rotation-deg", type=float, default=1.5,
+                    help="search-scene rotation is drawn uniformly from "
+                         "[-this, +this] degrees (spec: 1-2 deg may occur). "
+                         "Default 1.5 matches all previously-reported numbers "
+                         "exactly; use 2.0 to validate the spec's upper edge.")
     ap.add_argument("--visual-clarity", action="store_true",
                     help="disable the process-variation fingerprint and the "
                          "micron-scale landmarks for the cleanest possible "
@@ -878,7 +899,8 @@ def main():
                                         pv_amplitude=args.pv_amplitude,
                                         boundary_bias=args.boundary_bias,
                                         modality=args.modality,
-                                        visual_clarity=args.visual_clarity)
+                                        visual_clarity=args.visual_clarity,
+                                        max_rotation_deg=args.max_rotation_deg)
         rname = f"pair{i:03d}_reference.png"
         sname = f"pair{i:03d}_search.png"
         cv2.imwrite(os.path.join(args.out, rname), ref)
