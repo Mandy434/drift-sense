@@ -2,7 +2,7 @@
 
 SEMICON India Hackathon 2026 · Track 2 (Applied Materials) submission.
 
-**Team Maverick** · Idea ID 3 · Mandeep Singh Rawat, Vinay
+**Team Maverick** · Mandeep Singh Rawat, Vinay
 
 Given a **Reference image** (a small site captured at 100x magnification) and a
 **Search image** (a 1000x1000 view of the same die region captured at 10x), this
@@ -278,6 +278,7 @@ right the arrow is invisibly short, which is the honest outcome.
 | `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
 | `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
 | `examples/` | Representative SEM success and failure cases |
+| `dataset_sample/` | 4 raw, unannotated reference/search pairs (seed 42, pairs 0-3) — what the generator's actual output looks like, no overlays |
 | `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `requirements.txt` | Pinned direct dependencies (4 packages) |
 | `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
