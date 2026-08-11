@@ -129,8 +129,8 @@ the search field rather than a tenth.
 The three colour channels are not imaged at identical magnification, so a
 feature is displaced slightly differently in R, G and B. We model this as a
 small per-channel radial scale difference.
-- Hecht, E., *Optics*, op. cit., Ch. 6 (Aberrations) — lateral (transverse)
-  chromatic aberration and its radial dependence.
+- Hecht, E., *Optics*, op. cit., Ch. 6 (More on Geometrical Optics) — lateral
+  (transverse) chromatic aberration and its radial dependence.
 
 **[C10] Bayer colour-filter array and demosaic correlation**
 A single-sensor colour camera samples one colour per pixel behind a mosaic
