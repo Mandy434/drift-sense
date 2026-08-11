@@ -211,6 +211,7 @@ Options:
 | `--modality {sem,optical}` | `sem` | imaging model; `optical` writes 3-channel RGB (bonus) |
 | `--noise-scale F` | 1.0 | `>1` produces noisier images (robustness testing) |
 | `--scale-ratio F` | 10.0 | reference:search magnification ratio (spec: nominal 10, robustness testing may probe ~9-11) |
+| `--max-rotation-deg F` | 1.5 | search-scene rotation drawn uniformly from [-F, +F] degrees (spec: 1-2 deg may occur) |
 | `--pv-amplitude F` | randomized | fix across-die process-variation strength (`0.0` = purely periodic, hardest case) |
 | `--boundary-bias F` | 0.35 | fraction of reference sites forced to straddle a mat/strip edge |
 | `--visual-clarity` | off | disable the fingerprint and micron landmarks for cleaner-looking images (costs accuracy — slides only) |
@@ -505,6 +506,22 @@ already scored 100 %/90 % on this same sweep — so the failure mode this wideni
 targets is a design gap the data didn't happen to expose, not a bug it fixed. We
 widened it anyway: relying on an unmeasured margin of a scoring function is a
 weaker guarantee than an explicit design range that covers the specified spec.
+
+**Rotation edge (2°).** The problem statement's default scene rotation is drawn
+from ±1.5°; the spec calls out "1-2°" as the range that may occur. All numbers
+above use the default. `--max-rotation-deg` makes the upper edge explicit and
+testable rather than assumed — the affine-displacement margin that keeps every
+site comfortably inside the search image also scales with it automatically, so
+raising this doesn't reintroduce the border-clipping bug the margin exists to
+prevent (checked directly: no site in this run sits within 60 px of the border):
+
+```bash
+python generate_dataset.py --num-pairs 20 --out rot2 --style mixed --seed 88 --max-rotation-deg 2.0
+python evaluate.py rot2
+```
+
+Result: **20/20 (100 %)**, median error 0.09 px (seed 88) — no measurable
+accuracy cost at the spec's stated upper edge either.
 
 ### Per-pair diagnostics
 
