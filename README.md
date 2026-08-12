@@ -289,7 +289,7 @@ right the arrow is invisibly short, which is the honest outcome.
 | `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
 | `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
 | `examples/` | Representative SEM success and failure cases |
-| `dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `dataset/results.csv` was scored against, so every claimed number is directly image-verifiable |
+| `dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other six seeds/sweeps have a committed `results.csv` but not raw images) |
 | `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `requirements.txt` | Pinned direct dependencies (4 packages) |
 | `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
@@ -429,7 +429,7 @@ Expected (on the environment in `requirements-freeze.txt`): 20/20, 19/20, 19/20,
 accuracy-by-threshold chart) into each dataset directory.
 
 **Please do not judge this pipeline on a single 20-pair run.** Our own runs span
-90 %–100 % across seeds with identical code; at n=20 the standard error is about
+85 %–100 % across seeds with identical code; at n=20 the standard error is about
 5 pp. Any comparison between two variants needs several seeds to be
 meaningful — we learned this the hard way after a change that looked like a
 7-point regression turned out to be noise.
