@@ -13,16 +13,21 @@ where classical single-peak template matching breaks down.
 
 **Results.** The problem statement requires validation on **at least 30**
 varied, independently generated pairs. This submission validates on **80
-baseline pairs across four independent seeds**, plus over **120 additional
-pairs** in targeted robustness sweeps (scale ratio, rotation, noise, boundary
-placement, fingerprint ablation) — **200+ evaluated pairs total**, every one
-of them backed by a committed `results.csv` and reproducible with the exact
-seed and command in this README. Reported over **four independent seeds, 80
-pairs total** (mixed DRAM + FinFET, process-variation amplitude randomized per
-pair), measured with `evaluate.py` in the exact environment pinned in
-`requirements-freeze.txt`. A single 20-pair run varies noticeably by seed, so
-we report the aggregate rather than the best run — and these exact numbers are
-tied to that exact environment; see the note at the end of this section.
+baseline pairs across four independent seeds**, plus **60 additional pairs**
+in targeted robustness sweeps (scale ratio 9:1 and 11:1, rotation edge 2°) —
+**140 evaluated pairs total**, each seed/sweep backed by its own committed
+`results.csv` (`dataset/`, `sweep101/`, `sweep202/`, `sweep303/`, `ratio9/`,
+`ratio11/`, `rot2/`) and reproducible with the exact seed and command in this
+README. A few further robustness checks (dose reduction, boundary bias,
+fingerprint ablation) are reported below but were run before this repo
+started committing per-run CSVs, so their numbers are prose-only, not
+independently file-backed the same way. Reported over **four independent
+seeds, 80 pairs total** (mixed DRAM + FinFET, process-variation amplitude
+randomized per pair), measured with `evaluate.py` in the exact environment
+pinned in `requirements-freeze.txt`. A single 20-pair run varies noticeably
+by seed, so we report the aggregate rather than the best run — and these
+exact numbers are tied to that exact environment; see the note at the end of
+this section.
 
 | Threshold | Pass rate |
 |---|---|
