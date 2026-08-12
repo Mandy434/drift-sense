@@ -150,7 +150,7 @@ Normalized cross-correlation (`cv2.matchTemplate`, `TM_CCOEFF_NORMED`) is
 the standard classical template-matching similarity measure, invariant to
 linear brightness/contrast offset — appropriate given the independent
 gain/offset drift in our SEM capture model. A coarse-to-fine grid over scale
-(±8% around the nominal 10x ratio) and rotation (±2°) accounts for the
+(±12% around the nominal 10x ratio) and rotation (±2°) accounts for the
 sub-percent stage/optics scale error and small rotation misalignment
 between the two captures, which the problem statement identifies as a real
 source of navigation error.
