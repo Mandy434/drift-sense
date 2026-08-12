@@ -514,10 +514,11 @@ search was widened from ±8 % to ±12 % around its assumed nominal, so a 9:1 or 
 pair (whose true template size sits ~9–11 % off nominal) falls inside the search
 window by explicit design rather than by relying on normalized cross-correlation's
 incidental tolerance to a small scale mismatch. In testing, the old ±8 % window
-already scored 100 %/90 % on this same sweep — so the failure mode this widening
-targets is a design gap the data didn't happen to expose, not a bug it fixed. We
-widened it anyway: relying on an unmeasured margin of a scoring function is a
-weaker guarantee than an explicit design range that covers the specified spec.
+already scored 100 %/100 % on this exact seed-55 sweep — so the widening didn't
+fix an observed failure here; it closes a design gap a smaller, separate n=10
+pilot at a different seed had shown (100 %/90 % there). We widened it anyway:
+relying on an unmeasured margin of a scoring function is a weaker guarantee than
+an explicit design range that covers the specified spec.
 
 **Rotation edge (2°).** The problem statement's default scene rotation is drawn
 from ±1.5°; the spec calls out "1-2°" as the range that may occur. All numbers
