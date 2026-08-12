@@ -382,7 +382,7 @@ python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.p
 
 1. **Denoise** — mild Gaussian blur on both images suppresses the independent
    sensor noise while preserving layout structure.
-2. **Coarse-to-fine NCC search** — grid search over template scale (±8 % around
+2. **Coarse-to-fine NCC search** — grid search over template scale (±12 % around
    the nominal magnification ratio) and rotation (±2°), scored with normalized
    cross-correlation, then refined on a finer grid around the coarse optimum. The
    nominal ratio is 10x for a single-channel SEM pair and 3x for a 3-channel
