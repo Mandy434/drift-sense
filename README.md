@@ -203,9 +203,9 @@ cd drift-sense
 pip install -r requirements.txt
 ```
 
-`requirements.txt` pins the four direct dependencies. `requirements-freeze.txt` is a
-full `pip freeze` of the environment every number in this README was measured in,
-for exact reproduction.
+`requirements.txt` is the complete `pip freeze` of the exact environment every
+number in this README was measured in, for exact reproduction. `requirements-freeze.txt`
+is kept as an identical, explicitly-named copy of the same freeze.
 
 ### 1. Generate a dataset (with ground truth)
 
@@ -319,10 +319,11 @@ each hold a short `README.md` saying so rather than being silently absent).
 | `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (30 rows for the four baseline seeds' folders, 20 for the three robustness sweeps) from each reported evaluation run — raw images for the seed-42 run are separately committed in `results/dataset_sample/` above |
 | `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (120 pairs, 4 seeds) |
-| `requirements.txt` | Pinned direct dependencies (4 packages) |
-| `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
+| `requirements.txt` | Complete `pip freeze` of the exact environment every number in this README was measured in |
+| `requirements-freeze.txt` | Identical copy of `requirements.txt`, kept as an explicitly-named freeze file |
 | `references/references.md` | Literature justification for every noise/augmentation choice |
 | `solution_presentation.pptx` | Solution presentation — problem, approach, results, citations, limitations |
+| `solution_presentation.pdf` | PDF export of the same presentation, for submission portals that require PDF |
 
 **No model weights or training script are included — the pipeline is entirely
 classical and requires no training.**

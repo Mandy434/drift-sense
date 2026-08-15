@@ -14,12 +14,12 @@ Or let it pick automatically within one dataset:
     python src/make_visuals.py --dataset results/dataset --auto failure --out results/examples/failure_case.png
 
 `--auto failure` runs every pair in the dataset and renders the worst one --
-useful for a dataset that actually contains a failure. The default 20-pair
-baseline seeds mostly don't (that's the point of a 93.75% accuracy figure);
+useful for a dataset that actually contains a failure. The default 30-pair
+baseline seeds mostly don't (that's the point of a 93.33% accuracy figure);
 the documented worst-case (721 px, seed 202 pair 12 -- see README "Results")
 is reproduced with:
 
-    python src/generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
+    python src/generate_dataset.py --num-pairs 30 --out results/sweep202 --style mixed --seed 202
     python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 """
 import argparse

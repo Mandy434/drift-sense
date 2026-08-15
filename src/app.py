@@ -159,7 +159,7 @@ def generate(style, pairs, seed, do_optical, do_localise, visual_clarity,
                    "clean flat mats (measured ~71% accuracy, demo/slides only)")
     else:
         msg.append("visual-clarity OFF: fingerprint + micron landmarks ON, "
-                   "textured mats (measured 93.75% accuracy, the reported number)")
+                   "textured mats (measured 93.33% accuracy, the reported number)")
     if do_localise:
         msg.append("green box = ground truth, red cross = localiser prediction, "
                    "arrow = measured error")
@@ -213,14 +213,14 @@ with gr.Blocks(title="Drift-Sense Generator") as demo:
     with gr.Row():
         visual_clarity = gr.Checkbox(
             value=False,
-            label="Visual-clarity mode (OFF = accuracy build, 93.75%: fingerprint + "
+            label="Visual-clarity mode (OFF = accuracy build, 93.33%: fingerprint + "
                   "landmarks visible as textured patches / ON = clean-look build, "
                   "71%: flat mats, demo/slides only)")
         gr.Markdown(
             "**OFF (default):** both disambiguating cues stay on -- mats show the "
             "process-variation fingerprint (soft cloudy shading) and micron-scale "
             "landmarks (checkerboards, pads, stripes). This is the accuracy the "
-            "submission reports: **93.75%** (75/80, four seeds).\n\n"
+            "submission reports: **93.33%** (112/120, four seeds).\n\n"
             "**ON:** both cues are switched off for the cleanest, flattest-looking "
             "mats -- no shading, no landmarks. Measured accuracy drops to "
             "**71.2%**. Use this only for a clean screenshot, not as the reported "
