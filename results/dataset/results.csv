@@ -19,3 +19,13 @@ pair_id,run_seed,pair_seed,reference,search,style,modality,true_center_x,true_ce
 17,42,4200143,pair017_reference.png,pair017_search.png,finfet,sem,228.24,212.83,228.27,212.76,0.0762,2.0763,-0.722,0.999,0.0948,0
 18,42,4200144,pair018_reference.png,pair018_search.png,dram,sem,659.08,314.36,659.01,314.37,0.0707,1.9401,0.247,0.9977,0.1016,0
 19,42,4200145,pair019_reference.png,pair019_search.png,finfet,sem,309.91,384.53,309.95,384.54,0.0412,1.9249,-0.597,1.027,0.2671,0
+20,42,4200146,pair020_reference.png,pair020_search.png,dram,sem,571.49,639.78,571.68,640.09,0.3636,2.4052,-1.339,0.9916,0.0381,0
+21,42,4200147,pair021_reference.png,pair021_search.png,finfet,sem,227.07,650.35,226.89,650.37,0.1811,2.4944,-0.839,0.9799,0.2234,0
+22,42,4200148,pair022_reference.png,pair022_search.png,dram,sem,769.78,423.07,769.76,423.1,0.0361,2.2627,0.492,1.0048,0.1402,1
+23,42,4200149,pair023_reference.png,pair023_search.png,finfet,sem,688.14,535.45,688.21,535.54,0.114,2.1528,-0.842,1.0252,0.2257,1
+24,42,4200150,pair024_reference.png,pair024_search.png,dram,sem,717.66,455.52,717.66,455.31,0.21,2.1248,0.783,0.9971,0.2002,1
+25,42,4200151,pair025_reference.png,pair025_search.png,finfet,sem,685.19,697.91,685.19,697.86,0.05,2.1448,-0.819,0.9987,0.1134,1
+26,42,4200152,pair026_reference.png,pair026_search.png,dram,sem,258.01,469.99,258.06,470.0,0.051,2.1687,0.117,0.992,0.0946,1
+27,42,4200153,pair027_reference.png,pair027_search.png,finfet,sem,688.72,592.6,688.8,592.63,0.0854,2.1122,0.68,1.0252,0.0797,0
+28,42,4200154,pair028_reference.png,pair028_search.png,dram,sem,428.64,348.19,428.57,348.14,0.086,2.1181,1.325,1.0296,0.0037,1
+29,42,4200155,pair029_reference.png,pair029_search.png,finfet,sem,668.5,272.64,667.81,272.02,0.9276,2.1077,0.466,1.014,0.0802,1

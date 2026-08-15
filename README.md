@@ -12,50 +12,53 @@ Navigation-Error Recovery, solved for highly periodic DRAM and FinFET layouts
 where classical single-peak template matching breaks down.
 
 **Results.** The problem statement requires validation on **at least 30**
-varied, independently generated pairs. This submission validates on **80
+varied, independently generated pairs. This submission validates on **90
 baseline pairs across four independent seeds**, plus **60 additional pairs**
 in targeted robustness sweeps (scale ratio 9:1 and 11:1, rotation edge 2°) —
-**140 evaluated pairs total**, each seed/sweep backed by its own committed
+**150 evaluated pairs total**, each seed/sweep backed by its own committed
 `results.csv` (`dataset/`, `sweep101/`, `sweep202/`, `sweep303/`, `ratio9/`,
 `ratio11/`, `rot2/`) and reproducible with the exact seed and command in this
-README. A few further robustness checks (dose reduction, boundary bias,
-fingerprint ablation) are reported below but were run before this repo
-started committing per-run CSVs, so their numbers are prose-only, not
-independently file-backed the same way. Reported over **four independent
-seeds, 80 pairs total** (mixed DRAM + FinFET, process-variation amplitude
-randomized per pair), measured with `evaluate.py` in the exact environment
-pinned in `requirements-freeze.txt`. A single 20-pair run varies noticeably
-by seed, so we report the aggregate rather than the best run — and these
-exact numbers are tied to that exact environment; see the note at the end of
-this section.
+README. The seed-42 baseline is 30 pairs specifically so that the raw,
+unannotated reference/search images for every one of them can be committed in
+`results/dataset_sample/` (30 raw pairs, not just a sample) — every number
+reported for seed 42 is directly image-verifiable, not just CSV-verifiable.
+A few further robustness checks (dose reduction, boundary bias, fingerprint
+ablation) are reported below but were run before this repo started
+committing per-run CSVs, so their numbers are prose-only, not independently
+file-backed the same way. Reported over **four independent seeds, 90 pairs
+total** (mixed DRAM + FinFET, process-variation amplitude randomized per
+pair), measured with `evaluate.py` in the exact environment pinned in
+`requirements-freeze.txt`. A single run varies noticeably by seed, so we
+report the aggregate rather than the best run — and these exact numbers are
+tied to that exact environment; see the note at the end of this section.
 
 | Threshold | Pass rate |
 |---|---|
-| ≤ 5 px | **93.75 % (75/80)** |
-| ≤ 4 px | 93.75 % (75/80) |
-| ≤ 2 px | 91.25 % (73/80) |
-| ≤ 1 px (sub-pixel) | 90.0 % (72/80) |
+| ≤ 5 px | **94.44 % (85/90)** |
+| ≤ 4 px | 94.44 % (85/90) |
+| ≤ 2 px | 92.22 % (83/90) |
+| ≤ 1 px (sub-pixel) | 91.11 % (82/90) |
 
 | Error statistic (px) | Value |
 |---|---|
 | Median | **0.10** |
-| Mean | 21.36 |
-| Worst-case | 721.22 |
+| Mean | 19.01 |
+| Worst-case | 721.21 |
 | Best-case | 0.01 |
 | Mean inference time per pair | **~2.3 s** (CPU only, no GPU) |
 | At 2x dose reduction (seed 77) | **100 % (20/20)**, median 0.08 px |
 | At 3x dose reduction (seed 555) | **100 % (20/20)**, median 0.12 px |
 | Bonus: optical microscope, 3-channel RGB | **100 % (8/8)**, median 0.55 px |
 
-Seeds: `42`, `101`, `202`, `303` (20 pairs each). Per-seed: 20/20, 19/20, 19/20,
-17/20. Exact commands in
+Seeds: `42` (30 pairs), `101`, `202`, `303` (20 pairs each). Per-seed:
+30/30, 19/20, 19/20, 17/20. Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
 
-![Aggregate accuracy by pixel tolerance, 80 pairs across 4 seeds](results/accuracy_by_threshold.png)
+![Aggregate accuracy by pixel tolerance, 90 pairs across 4 seeds](results/accuracy_by_threshold.png)
 
 **Read the mean and the median together, not either alone.** The median (0.10 px)
 is what a typical pair looks like: sub-pixel, every time, on both structures. The
-mean (21.36 px) is dragged up by five catastrophic misses out of 80 — full lattice
+mean (19.01 px) is dragged up by five catastrophic misses out of 90 — full lattice
 jumps, not near-tolerance overshoots. The worst of them, 721 px, lands the
 prediction on essentially a different part of the die entirely. We report both
 because a mean-only number would hide how good the typical case is, and a
@@ -63,9 +66,9 @@ median-only number would hide that failures, when they happen, are not small.
 
 **These exact figures are pinned to `requirements-freeze.txt`.** Re-measuring
 this dataset after an OpenCV/NumPy version change previously shifted the
-5 px accuracy by one pair (95.0 % → 93.75 %) with the *identical* seeds and code
-— floating-point differences in blur/resize/warp implementations across library
-versions are enough to flip a borderline classification. This is exactly why the
+5 px accuracy by one pair with the *identical* seeds and code — floating-point
+differences in blur/resize/warp implementations across library versions are
+enough to flip a borderline classification. This is exactly why the
 pip-freeze file exists: don't expect to reproduce these numbers on a different
 environment than the one it records.
 
@@ -85,12 +88,13 @@ accuracy to 40 %, which is what motivated the mat/strip hierarchy (which took th
 same ablation to 90 %) and then the micron-scale structures (95 %). We report the
 progression because it shows what each layer of die realism is actually worth.
 
-**What actually limits accuracy.** The five failures across the 80 baseline
+**What actually limits accuracy.** The five failures across the 90 baseline
 pairs are concentrated on near-uniform, low-process-variation FinFET dies, and
 on dies where the fingerprint field itself happens to be weak. A
 `--visual-clarity` flag exists for generating the cleanest possible images (for
 slides or a quick look) by disabling both disambiguating cues; it costs real
-accuracy (measured at 71.2 %, 57/80) and is **off by default** for exactly that
+accuracy (measured at 71.2 %, 57/80 -- on the original 80-pair basis, see the
+note below the comparison table) and is **off by default** for exactly that
 reason — the number quoted above is the one to report.
 
 ---
@@ -107,7 +111,15 @@ detects the channel count and adapts. 8/8 within 5 px, median error 0.55 px.
 |---|---|
 | ![Optical default, reference](results/rgb/default_reference.png) | ![Optical clean, reference](results/rgb/clean_reference.png) |
 | ![Optical default, search](results/rgb/default_search.png) | ![Optical clean, search](results/rgb/clean_search.png) |
-| **93.75 %** (75/80) | **71.2 %** (57/80) |
+| **94.44 %** (85/90) | **71.2 %** (57/80) |
+
+The two columns are on different denominators (90 vs. 80): the default-build
+figure is this submission's current 90-pair baseline (see Results above); the
+`--visual-clarity` figure predates the seed-42 dataset expansion to 30 pairs
+and has not been re-measured since (see the note under "Default build vs.
+`--visual-clarity` build" below) -- treat it as indicative of the size of the
+accuracy gap this ablation costs, not as a precise apples-to-apples percentage
+against the current headline number.
 
 Left column: mats carry the process-variation fingerprint (soft cloudy shading)
 and micron-scale landmarks (checkerboards, pads, stripes). Right column: both
@@ -161,7 +173,7 @@ to, so sub-pixel refinement has less to work with. Accuracy is nonetheless as
 high as the SEM case, because the mat/strip/landmark layout is coarse enough that
 period-jump ambiguity largely disappears — mats are individually distinguishable
 by their interference colour and by the metrology marks they carry. Note that
-this is 8 pairs, not 80; treat it as a demonstration that the modality works, not
+this is 8 pairs, not 90; treat it as a demonstration that the modality works, not
 as a precision accuracy estimate.
 
 ---
@@ -302,10 +314,10 @@ each hold a short `README.md` saying so rather than being silently absent).
 | `configs/` | No separate config module — every run parameter is an explicit, documented CLI flag on `generate_dataset.py`/`localize.py` (see the options table below). `configs/README.md` explains this so the folder isn't mistaken for a missing piece. |
 | `model/` | No trained weights — the pipeline is entirely classical CV, no training step. `model/README.md` states this explicitly. |
 | `results/examples/` | Representative SEM success and failure cases |
-| `results/dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `results/dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other six seeds/sweeps have a committed `results.csv` but not raw images) |
+| `results/dataset_sample/` | The full seed-42, 30-pair raw (unannotated) reference/search set — identical to what `results/dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other three seeds and three robustness sweeps have a committed `results.csv` but not raw images) |
 | `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (and, for `results/dataset/`, raw images too) from each reported evaluation run |
-| `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (80 pairs, 4 seeds) |
+| `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (90 pairs, 4 seeds) |
 | `requirements.txt` | Pinned direct dependencies (4 packages) |
 | `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
 | `references/references.md` | Literature justification for every noise/augmentation choice |
@@ -425,7 +437,7 @@ python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/exa
 The headline figure is an aggregate over four seeds. Run all four:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/dataset  --style mixed --seed 42
+python src/generate_dataset.py --num-pairs 30 --out results/dataset  --style mixed --seed 42
 python src/evaluate.py results/dataset
 
 python src/generate_dataset.py --num-pairs 20 --out results/sweep101 --style mixed --seed 101
@@ -438,8 +450,13 @@ python src/generate_dataset.py --num-pairs 20 --out results/sweep303 --style mix
 python src/evaluate.py results/sweep303
 ```
 
-Expected (on the environment in `requirements-freeze.txt`): 20/20, 19/20, 19/20,
-17/20 → 75/80 = 93.75 % @ 5 px. `evaluate.py` also writes `results.csv`
+Seed 42 runs 30 pairs rather than 20 so that its raw reference/search images
+can be committed in full in `results/dataset_sample/` (see the note in
+Results above) -- the other three seeds stay at 20 pairs each, matching their
+committed `results.csv`.
+
+Expected (on the environment in `requirements-freeze.txt`): 30/30, 19/20, 19/20,
+17/20 → 85/90 = 94.44 % @ 5 px. `evaluate.py` also writes `results.csv`
 (per-pair prediction, ground truth, error and timing) and `results.png` (an
 accuracy-by-threshold chart) into each dataset directory.
 
@@ -577,9 +594,11 @@ python src/generate_dataset.py --num-pairs 20 --out results/demo --style mixed -
 ```
 
 This disables both the process-variation fingerprint and the micron-scale
-landmarks. Measured accuracy on this build: **71.2 % (57/80)** across the same
-four seeds. Do not quote this number as the pipeline's accuracy — it is a
-deliberately harder, scaffolding-free configuration for visual purposes only.
+landmarks. Measured accuracy on this build: **71.2 % (57/80)**, on the
+original 80-pair (20 pairs/seed) basis predating the seed-42 dataset
+expansion above -- not re-measured since. Do not quote this number as the
+pipeline's accuracy — it is a deliberately harder, scaffolding-free
+configuration for visual purposes only.
 The manifest records which mode produced each pair (`visual_clarity` column).
 
 Note that this flag also shifts the RNG stream, so a given seed does not produce
@@ -664,11 +683,11 @@ guard the properties every reported number silently depends on:
 
 ## Limitations
 
-- Accuracy is 93.75 %, not 100 %. The residual failures are concentrated on
+- Accuracy is 94.44 %, not 100 %. The residual failures are concentrated on
   near-uniform, low-process-variation FinFET dies, where neither the lattice nor
   the fingerprint distinguishes one period from the next.
 - When it fails, it fails big, not small. The five sub-5px-tolerance failures in
-  the 80-pair baseline are full lattice-period jumps (8–721 px), not near-miss
+  the 90-pair baseline are full lattice-period jumps (8–721 px), not near-miss
   overshoots — this pipeline does not degrade gracefully near its failure
   boundary, it jumps to a different, equally-confident-looking site. A
   deployment would need a confidence/rejection threshold on top of this, not
