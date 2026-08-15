@@ -51,7 +51,7 @@ Seeds: `42`, `101`, `202`, `303` (20 pairs each). Per-seed: 20/20, 19/20, 19/20,
 17/20. Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
 
-![Aggregate accuracy by pixel tolerance, 80 pairs across 4 seeds](accuracy_by_threshold.png)
+![Aggregate accuracy by pixel tolerance, 80 pairs across 4 seeds](results/accuracy_by_threshold.png)
 
 **Read the mean and the median together, not either alone.** The median (0.10 px)
 is what a typical pair looks like: sub-pixel, every time, on both structures. The
@@ -105,8 +105,8 @@ detects the channel count and adapts. 8/8 within 5 px, median error 0.55 px.
 
 | Default build (both cues on) | `--visual-clarity` build (cues off) |
 |---|---|
-| ![Optical default, reference](rgb/default_reference.png) | ![Optical clean, reference](rgb/clean_reference.png) |
-| ![Optical default, search](rgb/default_search.png) | ![Optical clean, search](rgb/clean_search.png) |
+| ![Optical default, reference](results/rgb/default_reference.png) | ![Optical clean, reference](results/rgb/clean_reference.png) |
+| ![Optical default, search](results/rgb/default_search.png) | ![Optical clean, search](results/rgb/clean_search.png) |
 | **93.75 %** (75/80) | **71.2 %** (57/80) |
 
 Left column: mats carry the process-variation fingerprint (soft cloudy shading)
@@ -125,7 +125,7 @@ Colour is real 3-channel capture, not a colour map applied to a grey image — s
 the `applyColorMap` regression test in [Tests](#tests). Verify for yourself:
 
 ```bash
-python -c "import cv2, numpy as np; im = cv2.imread('rgb/default_search.png'); print(im.shape); print('grey' if np.allclose(im[:,:,0], im[:,:,1]) else 'RGB ok')"
+python -c "import cv2, numpy as np; im = cv2.imread('results/rgb/default_search.png'); print(im.shape); print('grey' if np.allclose(im[:,:,0], im[:,:,1]) else 'RGB ok')"
 ```
 
 ### What is physically different in the optical case
@@ -197,7 +197,7 @@ for exact reproduction.
 ### 1. Generate a dataset (with ground truth)
 
 ```bash
-python generate_dataset.py --num-pairs 30 --out dataset --style mixed --seed 2026
+python src/generate_dataset.py --num-pairs 30 --out results/dataset --style mixed --seed 2026
 ```
 
 This writes, into `dataset/`:
@@ -232,7 +232,7 @@ Options:
 ### 2. Run localization on a single pair
 
 ```bash
-python localize.py --reference dataset/pair000_reference.png --search dataset/pair000_search.png
+python src/localize.py --reference results/dataset/pair000_reference.png --search results/dataset/pair000_search.png
 ```
 
 Prints a single line to stdout — the predicted center:
@@ -240,6 +240,11 @@ Prints a single line to stdout — the predicted center:
 ```
 348.43 164.79
 ```
+
+**Coordinate convention.** Output is `x y` in search-image pixel coordinates,
+origin `(0, 0)` at the top-left corner, `x` increasing to the right and `y`
+increasing downward — the standard OpenCV/NumPy image-array convention, and
+the same one used throughout `ground_truth.csv`/`.json` and `results.csv`.
 
 Add `--verbose` to also print the winning scale/rotation, candidate count and
 runtime to stderr (stdout stays a clean `x y` for machine parsing). Add
@@ -250,7 +255,7 @@ you generate a pair at a non-default `--search-size`/`--ref-size` combination.
 ### 3. Score the whole dataset
 
 ```bash
-python evaluate.py dataset
+python src/evaluate.py results/dataset
 ```
 
 Prints per-pair predicted vs. true center and error in pixels, then a summary:
@@ -264,7 +269,7 @@ generation metadata — reference path, search path, true and predicted x/y) and
 ### 4. Browse it in a browser (optional)
 
 ```bash
-python app.py
+python src/app.py
 ```
 
 A Gradio app: pick an architecture, seed and pair count, generate SEM and
@@ -277,24 +282,34 @@ right the arrow is invisibly short, which is the honest outcome.
 
 ## Repository contents
 
+Layout follows the challenge's recommended `submission/` structure: runnable code
+under `src/`, committed datasets/plots/examples under `results/`, citations under
+`references/`, and empty-but-explained `configs/` and `model/` stubs (see below —
+this pipeline has no separate config file or trained weights, so those folders
+each hold a short `README.md` saying so rather than being silently absent).
+
 | Path | Purpose |
 |---|---|
-| `generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM and optical imaging models, ground truth) |
-| `localize.py` | **Localization inference script** — the file to run on test data |
-| `evaluate.py` | Batch evaluation harness (accuracy, error, timing) |
-| `app.py` | Gradio browser app: generate a dataset, browse SEM and optical pairs, and see the localiser's measured drift vector per pair |
-| `make_visuals.py` | Renders side-by-side success/failure visualizations |
-| `generate_family_dataset.py` | Sample-family generator: many reference sites from **one** die, so a wrong answer lands on a sibling cell rather than a different die |
-| `visualize_pipeline.py` | Renders the SEM imaging chain stage by stage (layout → PV field → edge brightening → blur → shot noise → read noise) |
-| `solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
-| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (26 tests) |
-| `examples/` | Representative SEM success and failure cases |
-| `dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other six seeds/sweeps have a committed `results.csv` but not raw images) |
-| `rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
+| `src/generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM and optical imaging models, ground truth) |
+| `src/localize.py` | **Localization inference script** — the file to run on test data |
+| `src/evaluate.py` | Batch evaluation harness (accuracy, error, timing) |
+| `src/app.py` | Gradio browser app: generate a dataset, browse SEM and optical pairs, and see the localiser's measured drift vector per pair |
+| `src/make_visuals.py` | Renders side-by-side success/failure visualizations |
+| `src/generate_family_dataset.py` | Sample-family generator: many reference sites from **one** die, so a wrong answer lands on a sibling cell rather than a different die |
+| `src/visualize_pipeline.py` | Renders the SEM imaging chain stage by stage (layout → PV field → edge brightening → blur → shot noise → read noise) |
+| `src/solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
+| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (28 tests) |
+| `configs/` | No separate config module — every run parameter is an explicit, documented CLI flag on `generate_dataset.py`/`localize.py` (see the options table below). `configs/README.md` explains this so the folder isn't mistaken for a missing piece. |
+| `model/` | No trained weights — the pipeline is entirely classical CV, no training step. `model/README.md` states this explicitly. |
+| `results/examples/` | Representative SEM success and failure cases |
+| `results/dataset_sample/` | The full seed-42, 20-pair raw (unannotated) reference/search set — identical to what `results/dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other six seeds/sweeps have a committed `results.csv` but not raw images) |
+| `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
+| `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (and, for `results/dataset/`, raw images too) from each reported evaluation run |
+| `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (80 pairs, 4 seeds) |
 | `requirements.txt` | Pinned direct dependencies (4 packages) |
 | `requirements-freeze.txt` | Full `pip freeze` of the exact environment every number in this README was measured in |
-| `references.md` | Literature justification for every noise/augmentation choice |
-| `DriftSense_Submission_12slides.pptx` | Solution presentation — problem, approach, results, citations, limitations |
+| `references/references.md` | Literature justification for every noise/augmentation choice |
+| `solution_presentation.pptx` | Solution presentation — problem, approach, results, citations, limitations |
 
 **No model weights or training script are included — the pipeline is entirely
 classical and requires no training.**
@@ -349,7 +364,7 @@ length rather than a pixel count.
    misalignment; the true centre is mapped through the same affine transform and
    recorded in search-image pixel coordinates.
 
-See `references.md` for the citation behind each of these choices.
+See `references/references.md` for the citation behind each of these choices.
 
 ## Success and failure examples
 
@@ -359,23 +374,23 @@ miss) is visible at a glance.
 
 **Success** — seed 42, pair 0. Error 0.06 px.
 
-![Success case: reference and search with true (green) and predicted (red) center](examples/success_case.png)
+![Success case: reference and search with true (green) and predicted (red) center](results/examples/success_case.png)
 
 **Failure** — seed 202, pair 12. Error 721 px. The reference is a near-featureless
 crop — flat, almost no process-variation texture — which is exactly the
 regime the fingerprint cue exists to disambiguate and, when it's this weak,
 can't:
 
-![Failure case: a near-featureless reference gives the localiser nothing to lock onto](examples/failure_case.png)
+![Failure case: a near-featureless reference gives the localiser nothing to lock onto](results/examples/failure_case.png)
 
 Reproduce either with:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out dataset  --style mixed --seed 42
-python make_visuals.py --dataset dataset  --idx 0  --out examples/success_case.png
+python src/generate_dataset.py --num-pairs 20 --out results/dataset  --style mixed --seed 42
+python src/make_visuals.py --dataset results/dataset  --idx 0  --out results/examples/success_case.png
 
-python generate_dataset.py --num-pairs 20 --out sweep202 --style mixed --seed 202
-python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
+python src/generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
+python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 ```
 
 ## How the localization algorithm works
@@ -410,17 +425,17 @@ python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.p
 The headline figure is an aggregate over four seeds. Run all four:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out dataset  --style mixed --seed 42
-python evaluate.py dataset
+python src/generate_dataset.py --num-pairs 20 --out results/dataset  --style mixed --seed 42
+python src/evaluate.py results/dataset
 
-python generate_dataset.py --num-pairs 20 --out sweep101 --style mixed --seed 101
-python evaluate.py sweep101
+python src/generate_dataset.py --num-pairs 20 --out results/sweep101 --style mixed --seed 101
+python src/evaluate.py results/sweep101
 
-python generate_dataset.py --num-pairs 20 --out sweep202 --style mixed --seed 202
-python evaluate.py sweep202
+python src/generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
+python src/evaluate.py results/sweep202
 
-python generate_dataset.py --num-pairs 20 --out sweep303 --style mixed --seed 303
-python evaluate.py sweep303
+python src/generate_dataset.py --num-pairs 20 --out results/sweep303 --style mixed --seed 303
+python src/evaluate.py results/sweep303
 ```
 
 Expected (on the environment in `requirements-freeze.txt`): 20/20, 19/20, 19/20,
@@ -446,11 +461,11 @@ from a higher dose). We describe these runs as dose reductions rather than
 "3x noise" for that reason.
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out stress2x --style mixed --seed 77 --noise-scale 2.0
-python evaluate.py stress2x
+python src/generate_dataset.py --num-pairs 20 --out results/stress2x --style mixed --seed 77 --noise-scale 2.0
+python src/evaluate.py results/stress2x
 
-python generate_dataset.py --num-pairs 20 --out stress3x --style mixed --seed 555 --noise-scale 3.0
-python evaluate.py stress3x
+python src/generate_dataset.py --num-pairs 20 --out results/stress3x --style mixed --seed 555 --noise-scale 3.0
+python src/evaluate.py results/stress3x
 ```
 
 The 3x dose reduction gives 20/20 (100 %) with median error 0.12 px —
@@ -462,8 +477,8 @@ Worst-case check — disable across-die variation entirely, leaving the array
 genuinely ambiguous except for the micron-scale landmarks:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out nofp --style mixed --seed 404 --pv-amplitude 0.0
-python evaluate.py nofp
+python src/generate_dataset.py --num-pairs 20 --out results/nofp --style mixed --seed 404 --pv-amplitude 0.0
+python src/evaluate.py results/nofp
 ```
 
 Result: **19/20 (95 %)**, median error 0.10 px (seed 404, one 20-pair run). The
@@ -478,8 +493,8 @@ a precise 95 %.
 Boundary-straddling crops — force every reference to span a mat/strip edge:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out boundary --style mixed --seed 909 --boundary-bias 1.0
-python evaluate.py boundary
+python src/generate_dataset.py --num-pairs 20 --out results/boundary --style mixed --seed 909 --boundary-bias 1.0
+python src/evaluate.py results/boundary
 ```
 
 Result: **17/20 (85 %)**, median error 0.13 px (seed 909, one 20-pair run). This is
@@ -499,11 +514,11 @@ true ratio and must find it by search, exactly as it would on an unlabelled test
 image:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out ratio9  --style mixed --seed 55 --scale-ratio 9.0
-python evaluate.py ratio9
+python src/generate_dataset.py --num-pairs 20 --out results/ratio9  --style mixed --seed 55 --scale-ratio 9.0
+python src/evaluate.py results/ratio9
 
-python generate_dataset.py --num-pairs 20 --out ratio11 --style mixed --seed 55 --scale-ratio 11.0
-python evaluate.py ratio11
+python src/generate_dataset.py --num-pairs 20 --out results/ratio11 --style mixed --seed 55 --scale-ratio 11.0
+python src/evaluate.py results/ratio11
 ```
 
 Result: **20/20 (100 %) at both 9:1 and 11:1** (seed 55, measured on the pinned
@@ -529,8 +544,8 @@ raising this doesn't reintroduce the border-clipping bug the margin exists to
 prevent (checked directly: no site in this run sits within 60 px of the border):
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out rot2 --style mixed --seed 88 --max-rotation-deg 2.0
-python evaluate.py rot2
+python src/generate_dataset.py --num-pairs 20 --out results/rot2 --style mixed --seed 88 --max-rotation-deg 2.0
+python src/evaluate.py results/rot2
 ```
 
 Result: **20/20 (100 %)**, median error 0.09 px (seed 88) — no measurable
@@ -542,7 +557,7 @@ To see *why* a pair failed — whether the true site was findable at all, and in
 which cue:
 
 ```bash
-python solvability_report.py --dataset dataset
+python src/solvability_report.py --dataset results/dataset
 ```
 
 For each pair this brute-forces scale and rotation in two separate channels: a
@@ -558,7 +573,7 @@ For slides, demos, or a quick look at the layout without any disambiguation
 scaffolding:
 
 ```bash
-python generate_dataset.py --num-pairs 20 --out demo --style mixed --seed 42 --visual-clarity
+python src/generate_dataset.py --num-pairs 20 --out results/demo --style mixed --seed 42 --visual-clarity
 ```
 
 This disables both the process-variation fingerprint and the micron-scale
@@ -574,8 +589,8 @@ aggregate accuracy, not pair by pair.
 ### Optical microscope mode (bonus)
 
 ```bash
-python generate_dataset.py --num-pairs 8 --out optical --style mixed --seed 606 --modality optical
-python localize.py --reference optical/pair000_reference.png --search optical/pair000_search.png
+python src/generate_dataset.py --num-pairs 8 --out results/optical --style mixed --seed 606 --modality optical
+python src/localize.py --reference results/optical/pair000_reference.png --search results/optical/pair000_search.png
 ```
 
 The images are written as 3-channel PNGs and `localize.py` needs no extra flag.
@@ -592,7 +607,7 @@ makes the localiser assume the 10x SEM footprint, which fails on every pair.
 To test confusion *within* one die rather than across dies:
 
 ```bash
-python generate_family_dataset.py --families 4 --sites 8 --out family_dataset --seed 42
+python src/generate_family_dataset.py --families 4 --sites 8 --out results/family_dataset --seed 42
 ```
 
 Every reference in a family must be located in that family's single search
@@ -605,9 +620,9 @@ the same fingerprint field — the hardest realistic form of navigation error.
 pytest tests/ -q
 ```
 
-26 tests, about 45 s (20 `def test_...` functions; 3 are parametrized across
-styles/seeds, so `pytest --collect-only` reports 26 collected cases — count the
-functions with `grep` and you'll get 20, which is not a discrepancy). These are
+28 tests (22 `def test_...` functions; 3 are parametrized across styles/seeds,
+so `pytest --collect-only` reports 28 collected cases — count the functions
+with `grep` and you'll get 22, which is not a discrepancy). These are
 contract tests rather than accuracy tests — they
 guard the properties every reported number silently depends on:
 
@@ -635,6 +650,17 @@ guard the properties every reported number silently depends on:
   luminance to RGB and must fail to reconstruct the image. False colour applied to
   a grey capture would reconstruct almost exactly, so this test fails loudly if
   the optical path ever degenerates into `applyColorMap`.
+- **Per-pair seed reproducibility** — every manifest record carries `run_seed`
+  (the `--seed` the whole run was started with) and `pair_seed` (the exact
+  value `np.random.default_rng()` was seeded with for that specific pair, per
+  the spec's requirement to store the random seed for every pair, not just the
+  run). This test re-seeds from the recorded `pair_seed` alone and checks the
+  regenerated image is byte-identical to the committed one — not just close.
+- **`evaluate.py` resolves `localize.py` correctly regardless of caller CWD** —
+  a regression test for a bug introduced by, and caught during, the `src/`
+  reorganisation: a bare `["python", "localize.py"]` subprocess call breaks
+  the moment `evaluate.py` is run from anywhere other than its own directory,
+  which is exactly how the README's documented commands invoke it.
 
 ## Limitations
 
@@ -652,7 +678,7 @@ guard the properties every reported number silently depends on:
   centred on a boundary carries less of any one mat's fingerprint and fewer whole
   landmarks, so both disambiguating cues are weaker at once.
 - Results are on synthetic data. The imaging models are literature-calibrated
-  (see `references.md`) but no real SEM or optical captures were available to
+  (see `references/references.md`) but no real SEM or optical captures were available to
   validate against.
 - The optical bonus is demonstrated on 8 pairs, which is enough to show the
   modality works and not enough for a precise accuracy figure.

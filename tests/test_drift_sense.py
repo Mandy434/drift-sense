@@ -18,6 +18,7 @@ hold:
 Run with:   pytest tests/ -v
 """
 
+import csv
 import json
 import subprocess
 import sys
@@ -28,7 +29,8 @@ import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+sys.path.insert(0, str(SRC))
 
 import generate_dataset as G                                    # noqa: E402
 import localize as L                                            # noqa: E402
@@ -245,13 +247,14 @@ def test_localize_finds_a_clean_synthetic_planted_patch():
 # ---------------------------------------------------------------- CLI contract
 def test_cli_writes_a_manifest_with_the_expected_columns(tmp_path):
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
                     "--num-pairs", "2", "--out", str(out),
                     "--style", "mixed", "--seed", "5"],
                    cwd=ROOT, check=True, capture_output=True)
     recs = json.loads((out / "ground_truth.json").read_text())
     assert len(recs) == 2
-    for key in ("pair_id", "style", "pv_amplitude", "reference", "search",
+    for key in ("pair_id", "run_seed", "pair_seed", "style", "pv_amplitude",
+                "reference", "search",
                 "true_center_x", "true_center_y", "ref_span_in_search_px",
                 "rotation_deg", "scale_jitter"):
         assert key in recs[0], f"missing manifest column: {key}"
@@ -264,16 +267,73 @@ def test_cli_writes_a_manifest_with_the_expected_columns(tmp_path):
 
 def test_localize_cli_prints_two_numbers(tmp_path):
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
                     "--num-pairs", "1", "--out", str(out), "--seed", "6"],
                    cwd=ROOT, check=True, capture_output=True)
-    p = subprocess.run([sys.executable, str(ROOT / "localize.py"),
+    p = subprocess.run([sys.executable, str(SRC / "localize.py"),
                         "--reference", str(out / "pair000_reference.png"),
                         "--search", str(out / "pair000_search.png")],
                        cwd=ROOT, check=True, capture_output=True, text=True)
     parts = p.stdout.strip().split()
     assert len(parts) == 2, f"stdout must be exactly 'x y', got {p.stdout!r}"
     float(parts[0]), float(parts[1])
+
+
+def test_manifest_pair_seed_actually_reproduces_the_pair(tmp_path):
+    """
+    The spec requires the random seed be stored per pair so any single pair is
+    independently reproducible, not just the whole run. `pair_seed` is what
+    np.random.default_rng() was actually seeded with for that pair -- verify
+    that re-seeding from the recorded value regenerates the exact same image,
+    not just a plausible-looking one.
+    """
+    out = tmp_path / "ds"
+    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+                    "--num-pairs", "3", "--out", str(out),
+                    "--style", "mixed", "--seed", "12345"],
+                   cwd=ROOT, check=True, capture_output=True)
+    recs = json.loads((out / "ground_truth.json").read_text())
+    for i, r in enumerate(recs):
+        assert r["run_seed"] == 12345
+        assert r["pair_seed"] == 12345 * 100003 + i
+        rng = np.random.default_rng(r["pair_seed"])
+        style = "dram" if i % 2 == 0 else "finfet"
+        ref, _, gt2 = G.generate_pair(rng, style=style)
+        assert gt2["true_center_x"] == pytest.approx(r["true_center_x"])
+        assert gt2["true_center_y"] == pytest.approx(r["true_center_y"])
+        saved_ref = cv2.imread(str(out / r["reference"]), cv2.IMREAD_UNCHANGED)
+        assert np.array_equal(ref, saved_ref), (
+            f"pair {i}: regenerating from the recorded pair_seed did not "
+            f"reproduce the committed image byte-for-byte")
+
+
+def test_evaluate_finds_localize_regardless_of_caller_cwd(tmp_path):
+    """
+    Regression test: evaluate.py lives in src/ alongside localize.py and must
+    invoke it via a path resolved relative to its own file location, not the
+    caller's current working directory. A bare `["python", "localize.py"]`
+    subprocess call would silently break the moment evaluate.py is invoked
+    from anywhere other than src/ itself (e.g. `python src/evaluate.py
+    results/dataset` from the repo root, which is exactly what the README
+    instructs).
+    """
+    out = tmp_path / "ds"
+    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+                    "--num-pairs", "1", "--out", str(out), "--seed", "77"],
+                   cwd=ROOT, check=True, capture_output=True)
+    # Run evaluate.py from ROOT (not from src/), exactly as the README's
+    # documented commands do.
+    p = subprocess.run([sys.executable, str(SRC / "evaluate.py"), str(out),
+                        "--no-plot"],
+                       cwd=ROOT, capture_output=True, text=True)
+    assert p.returncode == 0, f"evaluate.py failed:\n{p.stdout}\n{p.stderr}"
+    assert (out / "results.csv").exists()
+    row = next(csv.DictReader(open(out / "results.csv")))
+    # pred_x/pred_y only get populated correctly if the localize.py subprocess
+    # actually ran; if the path resolution were broken, error_px would be
+    # nonsensical (localize.py never runs, stdout is empty, float() would
+    # already have raised inside evaluate.py before we even get here).
+    assert float(row["error_px"]) < 1000.0
 
 
 # ------------------------------------------------- optical modality (bonus)

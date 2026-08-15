@@ -889,7 +889,8 @@ def main():
         # pair makes SEM pair i and optical pair i show the same die (same
         # layout, same true centre) for every i, at the same seed, which is
         # also what generate_family_dataset.py already assumed was possible.
-        rng = np.random.default_rng((args.seed or 0) * 100003 + i)
+        pair_seed = (args.seed or 0) * 100003 + i
+        rng = np.random.default_rng(pair_seed)
         style = args.style if args.style != "mixed" else ("dram" if i % 2 == 0 else "finfet")
         ref, search, gt = generate_pair(rng, style=style,
                                         search_size=args.search_size,
@@ -905,14 +906,23 @@ def main():
         sname = f"pair{i:03d}_search.png"
         cv2.imwrite(os.path.join(args.out, rname), ref)
         cv2.imwrite(os.path.join(args.out, sname), search)
-        gt.update({"pair_id": i, "reference": rname, "search": sname})
+        # Both the run-level --seed and the exact derived per-pair RNG seed are
+        # recorded, per the spec's "store the random seed ... for every pair":
+        # run_seed is what you pass to --seed to reproduce the whole dataset;
+        # pair_seed is what np.random.default_rng() was actually called with
+        # for this pair, so a single pair is independently reproducible too
+        # (np.random.default_rng(pair_seed) recreates this pair's RNG exactly).
+        gt.update({"pair_id": i, "reference": rname, "search": sname,
+                   "run_seed": args.seed if args.seed is not None else 0,
+                   "pair_seed": pair_seed})
         records.append(gt)
         print(f"[{i + 1}/{args.num_pairs}] ({style}, {args.modality}) true center = "
               f"({gt['true_center_x']}, {gt['true_center_y']})")
 
     with open(os.path.join(args.out, "ground_truth.json"), "w") as f:
         json.dump(records, f, indent=2)
-    keys = ["pair_id", "style", "modality", "channels", "visual_clarity",
+    keys = ["pair_id", "run_seed", "pair_seed", "style", "modality", "channels",
+            "visual_clarity",
             "scale_ratio", "noise_scale", "pv_amplitude", "reference", "search",
             "true_center_x", "true_center_y", "ref_span_in_search_px",
             "rotation_deg", "scale_jitter", "on_mat_boundary", "n_mats",
@@ -921,7 +931,8 @@ def main():
             "search_blur_sigma", "search_dose", "search_read_sigma", "search_edge_gain",
             "ref_exposure", "search_exposure", "search_defocus_nm"]
     with open(os.path.join(args.out, "ground_truth.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore", restval="")
+        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore", restval="",
+                            lineterminator="\n")
         w.writeheader()
         w.writerows(records)
 

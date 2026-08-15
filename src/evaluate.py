@@ -22,8 +22,15 @@ import platform
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
+
+# Resolve localize.py next to this file rather than relying on the caller's
+# current working directory -- evaluate.py is invoked as `python src/evaluate.py
+# results/dataset` from the repo root, so a bare "localize.py" would look for
+# ./localize.py relative to the CWD and fail to find it in src/.
+LOCALIZE = Path(__file__).resolve().parent / "localize.py"
 
 
 def main():
@@ -56,7 +63,7 @@ def main():
     for r in recs:
         t0 = time.perf_counter()
         out = subprocess.run(
-            ["python", "localize.py",
+            [sys.executable, str(LOCALIZE),
              "--reference", f"{d}/{r['reference']}",
              "--search", f"{d}/{r['search']}"],
             capture_output=True, text=True).stdout.split()
@@ -65,6 +72,8 @@ def main():
         err = float(np.hypot(cx - r["true_center_x"], cy - r["true_center_y"]))
         row = {
             "pair_id": r["pair_id"],
+            "run_seed": r.get("run_seed"),
+            "pair_seed": r.get("pair_seed"),
             "reference": r["reference"],
             "search": r["search"],
             "style": r.get("style"),
@@ -92,7 +101,7 @@ def main():
     # ---- CSV manifest: predictions + ground truth + per-pair metadata ----
     fieldnames = list(rows[0].keys())
     with open(csv_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
 

@@ -6,12 +6,12 @@ prediction, so a reader can see the match (or miss) at a glance.
 
 Usage
 -----
-    python make_visuals.py --dataset dataset  --idx 0  --out examples/dram_success.png
-    python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
+    python src/make_visuals.py --dataset results/dataset  --idx 0  --out results/examples/dram_success.png
+    python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 
 Or let it pick automatically within one dataset:
-    python make_visuals.py --dataset dataset --auto success --out examples/success_case.png
-    python make_visuals.py --dataset dataset --auto failure --out examples/failure_case.png
+    python src/make_visuals.py --dataset results/dataset --auto success --out results/examples/success_case.png
+    python src/make_visuals.py --dataset results/dataset --auto failure --out results/examples/failure_case.png
 
 `--auto failure` runs every pair in the dataset and renders the worst one --
 useful for a dataset that actually contains a failure. The default 20-pair
@@ -19,20 +19,26 @@ baseline seeds mostly don't (that's the point of a 93.75% accuracy figure);
 the documented worst-case (721 px, seed 202 pair 12 -- see README "Results")
 is reproduced with:
 
-    python generate_dataset.py --num-pairs 20 --out sweep202 --style mixed --seed 202
-    python make_visuals.py --dataset sweep202 --idx 12 --out examples/failure_case.png
+    python src/generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
+    python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 """
 import argparse
 import json
 import subprocess
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 
+# Resolve localize.py next to this file, not relative to the caller's CWD --
+# see the identical note in evaluate.py.
+LOCALIZE = Path(__file__).resolve().parent / "localize.py"
+
 
 def _predict(dataset, rec):
     out = subprocess.run(
-        ["python", "localize.py",
+        [sys.executable, str(LOCALIZE),
          "--reference", f"{dataset}/{rec['reference']}",
          "--search", f"{dataset}/{rec['search']}"],
         capture_output=True, text=True).stdout.split()
