@@ -95,9 +95,9 @@ pairs are concentrated on near-uniform, low-process-variation FinFET dies, and
 on dies where the fingerprint field itself happens to be weak. A
 `--visual-clarity` flag exists for generating the cleanest possible images (for
 slides or a quick look) by disabling both disambiguating cues; it costs real
-accuracy (measured at 71.2 %, 57/80 -- on the original 80-pair basis, see the
-note below the comparison table) and is **off by default** for exactly that
-reason — the number quoted above is the one to report.
+accuracy (measured at 81.67 %, 98/120 -- same four seeds and pair counts as the
+headline number, see the comparison table below) and is **off by default** for
+exactly that reason — the number quoted above is the one to report.
 
 ---
 
@@ -113,26 +113,30 @@ detects the channel count and adapts. 8/8 within 5 px, median error 0.55 px.
 |---|---|
 | ![Optical default, reference](results/rgb/default_reference.png) | ![Optical clean, reference](results/rgb/clean_reference.png) |
 | ![Optical default, search](results/rgb/default_search.png) | ![Optical clean, search](results/rgb/clean_search.png) |
-| **93.33 %** (112/120) | **71.2 %** (57/80) |
+| **93.33 %** (112/120) | **81.67 %** (98/120) |
 
-The two columns are on different denominators (120 vs. 80): the default-build
-figure is this submission's current 120-pair baseline (see Results above); the
-`--visual-clarity` figure predates the baseline expansion to 30 pairs/seed
-and has not been re-measured since -- treat it as indicative of the size of the
-accuracy gap this ablation costs, not as a precise apples-to-apples percentage
-against the current headline number.
+Both columns are now on the same basis: the same four seeds (`42`, `101`,
+`202`, `303`) and the same 30 pairs/seed as the headline number above, so this
+is a genuine apples-to-apples comparison of what the ablation costs — not the
+predates-the-expansion 71.2 % (57/80) figure reported in earlier versions of
+this README, which was measured on a smaller, 20-pairs/seed basis. Per-seed
+pass rate for the `--visual-clarity` build: 21/30, 25/30, 27/30, 25/30.
 
 Left column: mats carry the process-variation fingerprint (soft cloudy shading)
 and micron-scale landmarks (checkerboards, pads, stripes). Right column: both
 cues switched off, so the mats are flat and clean.
 
 This is an ablation, not decoration. The right-hand images look tidier — and
-cost real accuracy. What reads to the eye as clutter is exactly what lets
-the localiser disambiguate one lattice period from another. The clean build is
-for slides only; **do not quote its number as the pipeline's accuracy.** (The
-`71.2 %` figure predates the environment-pinning note above and has not been
-re-measured on the exact `requirements-freeze.txt` environment; treat it as
-indicative of the size of the gap, not as precise as the default-build number.)
+cost real accuracy: 11.66 points, from 93.33 % to 81.67 %. What reads to the
+eye as clutter is exactly what lets the localiser disambiguate one lattice
+period from another. The clean build is for slides only; **do not quote its
+number as the pipeline's accuracy.** (Unlike the default-build headline
+number, this figure was not measured in the exact environment pinned in
+`requirements-freeze.txt` — see the note in Results on how a library-version
+difference can shift a point or two — and has not been independently
+re-verified cross-platform the way the default-build number was in
+[Held-out generalization check](#held-out-generalization-check) above; treat
+it as accurate but slightly less scrutinized than the headline figure.)
 
 Colour is real 3-channel capture, not a colour map applied to a grey image — see
 the `applyColorMap` regression test in [Tests](#tests). Verify for yourself:
@@ -336,6 +340,7 @@ being silently absent).
 | `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (30 rows for the four baseline seeds' folders, 20 for the three robustness sweeps) from each reported evaluation run — raw images for the seed-42 run are separately committed in `results/dataset_sample/` above |
 | `results/heldout/` | Committed `results.csv` (30 rows) from a seed never touched during development — see [Held-out generalization check](#held-out-generalization-check) |
+| `results/vc42/`, `results/vc101/`, `results/vc202/`, `results/vc303/` | Committed `results.csv` (30 rows each) for the `--visual-clarity` build on the same four seeds as the headline number — see [Clean-image mode](#clean-image-mode---visual-clarity) |
 | `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (120 pairs, 4 seeds) |
 | `requirements.txt` | Complete `pip freeze` of the exact environment every number in this README was measured in |
 | `requirements-freeze.txt` | Identical copy of `requirements.txt`, kept as an explicitly-named freeze file |
@@ -640,11 +645,21 @@ python generate_dataset.py --num-pairs 20 --out results/demo --style mixed --see
 ```
 
 This disables both the process-variation fingerprint and the micron-scale
-landmarks. Measured accuracy on this build: **71.2 % (57/80)**, on the
-original 80-pair (20 pairs/seed) basis predating the seed-42 dataset
-expansion above -- not re-measured since. Do not quote this number as the
-pipeline's accuracy — it is a deliberately harder, scaffolding-free
-configuration for visual purposes only.
+landmarks. Measured accuracy on this build, on the same four-seed, 30-pairs/
+seed basis as the headline number (see
+[Default build vs. `--visual-clarity` build](#default-build-vs---visual-clarity-build)
+above): **81.67 % (98/120)**. Do not quote this number as the pipeline's
+accuracy — it is a deliberately harder, scaffolding-free configuration for
+visual purposes only. Reproduce it with:
+
+```bash
+python generate_dataset.py --num-pairs 30 --out results/vc42  --style mixed --seed 42  --visual-clarity && python src/evaluate.py results/vc42
+python generate_dataset.py --num-pairs 30 --out results/vc101 --style mixed --seed 101 --visual-clarity && python src/evaluate.py results/vc101
+python generate_dataset.py --num-pairs 30 --out results/vc202 --style mixed --seed 202 --visual-clarity && python src/evaluate.py results/vc202
+python generate_dataset.py --num-pairs 30 --out results/vc303 --style mixed --seed 303 --visual-clarity && python src/evaluate.py results/vc303
+```
+
+Expected: 21/30, 25/30, 27/30, 25/30 → 98/120 = 81.67 %.
 The manifest records which mode produced each pair (`visual_clarity` column).
 
 Note that this flag also shifts the RNG stream, so a given seed does not produce

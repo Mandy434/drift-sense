@@ -216,7 +216,7 @@ with gr.Blocks(title="Drift-Sense Generator") as demo:
             value=False,
             label="Visual-clarity mode (OFF = accuracy build, 93.33%: fingerprint + "
                   "landmarks visible as textured patches / ON = clean-look build, "
-                  "71%: flat mats, demo/slides only)")
+                  "81.67%: flat mats, demo/slides only)")
         gr.Markdown(
             "**OFF (default):** both disambiguating cues stay on -- mats show the "
             "process-variation fingerprint (soft cloudy shading) and micron-scale "
@@ -224,8 +224,8 @@ with gr.Blocks(title="Drift-Sense Generator") as demo:
             "submission reports: **93.33%** (112/120, four seeds).\n\n"
             "**ON:** both cues are switched off for the cleanest, flattest-looking "
             "mats -- no shading, no landmarks. Measured accuracy drops to "
-            "**71.2%**. Use this only for a clean screenshot, not as the reported "
-            "number."
+            "**81.67%** (98/120, same four seeds). Use this only for a clean "
+            "screenshot, not as the reported number."
         )
 
     btn = gr.Button("Generate", variant="primary")
