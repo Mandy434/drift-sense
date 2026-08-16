@@ -321,6 +321,7 @@ being silently absent).
 | `results/dataset_sample/` | The full seed-42, 30-pair raw (unannotated) reference/search set — identical to what `results/dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other three seeds and three robustness sweeps have a committed `results.csv` but not raw images) |
 | `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
 | `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (30 rows for the four baseline seeds' folders, 20 for the three robustness sweeps) from each reported evaluation run — raw images for the seed-42 run are separately committed in `results/dataset_sample/` above |
+| `results/heldout/` | Committed `results.csv` (30 rows) from a seed never touched during development — see [Held-out generalization check](#held-out-generalization-check) |
 | `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (120 pairs, 4 seeds) |
 | `requirements.txt` | Complete `pip freeze` of the exact environment every number in this README was measured in |
 | `requirements-freeze.txt` | Identical copy of `requirements.txt`, kept as an explicitly-named freeze file |
@@ -573,6 +574,32 @@ python src/evaluate.py results/rot2
 Result: **20/20 (100 %)**, median error 0.09 px (seed 88) — no measurable
 accuracy cost at the spec's stated upper edge either.
 
+### Held-out generalization check
+
+Every threshold in `localize.py` (`PEAK_MARGIN`, `CANDIDATE_MARGIN`,
+`FP_CONFIDENT`, `FP_GAP`, `FP_MAX_DEFICIT`, `PITCH_SIGMA`, ...) was tuned by
+hand while watching accuracy on seeds `42`/`101`/`202`/`303` and the
+robustness sweeps above — the same generator that produces the evaluation
+set also produced every pair those thresholds were tuned against. That is a
+closed loop: it does not by itself prove the pipeline generalizes past the
+exact seeds it was tuned on, only that it fits them.
+
+To check, we generated a seed that had never been run against this code
+before at any point in development, evaluated it once, and committed the
+result without further tuning:
+
+```bash
+python generate_dataset.py --num-pairs 30 --out results/heldout --style mixed --seed 84721
+python src/evaluate.py results/heldout
+```
+
+Result: **28/30 (93.3 %)**, median error 0.13 px — matching the 93.33 %
+baseline aggregate to within noise. This is one additional seed, not a
+substitute for a truly independent evaluation set (a different team's
+generator, or real SEM/optical captures, would be a stronger test than
+another seed of our own generator), but it is evidence against the
+thresholds being narrowly overfit to the four seeds already reported above.
+
 ### Per-pair diagnostics
 
 To see *why* a pair failed — whether the true site was findable at all, and in
@@ -711,6 +738,19 @@ guard the properties every reported number silently depends on:
 - Exact accuracy figures are tied to the environment in `requirements-freeze.txt`;
   library version differences (OpenCV/NumPy) can shift borderline pairs by a
   point or two even with identical seeds and code — see the note in Results.
+- The classical thresholds in `localize.py` were tuned by hand against the same
+  generator that produces the reported evaluation set — see
+  [Held-out generalization check](#held-out-generalization-check). A fresh,
+  never-tuned-against seed reproduces the headline number, but that is still
+  our own generator; an independently-designed synthetic set or real captures
+  would be a stronger generalization test than another seed of ours.
+- The spec's "closest to center" disambiguation rule (`localize.py`'s
+  `ambiguous`/nearest-to-center step) is implemented and correct, but on every
+  dataset we evaluated it never had more than one candidate to choose between
+  — the lattice/fingerprint scoring alone always produced a clear winner
+  first. The rule is there for genuine ties and does not misbehave, but we do
+  not have a measured example where it changed the answer; treat it as
+  spec-compliant rather than empirically exercised.
 
 ## Notes for reviewers
 
