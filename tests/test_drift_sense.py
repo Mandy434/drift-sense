@@ -30,7 +30,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
-sys.path.insert(0, str(SRC))
+sys.path.insert(0, str(ROOT))   # generate_dataset.py and localize.py live at the repo root
+sys.path.insert(0, str(SRC))    # everything else (evaluate.py etc.) lives in src/
 
 import generate_dataset as G                                    # noqa: E402
 import localize as L                                            # noqa: E402
@@ -247,7 +248,7 @@ def test_localize_finds_a_clean_synthetic_planted_patch():
 # ---------------------------------------------------------------- CLI contract
 def test_cli_writes_a_manifest_with_the_expected_columns(tmp_path):
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
                     "--num-pairs", "2", "--out", str(out),
                     "--style", "mixed", "--seed", "5"],
                    cwd=ROOT, check=True, capture_output=True)
@@ -267,10 +268,10 @@ def test_cli_writes_a_manifest_with_the_expected_columns(tmp_path):
 
 def test_localize_cli_prints_two_numbers(tmp_path):
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
                     "--num-pairs", "1", "--out", str(out), "--seed", "6"],
                    cwd=ROOT, check=True, capture_output=True)
-    p = subprocess.run([sys.executable, str(SRC / "localize.py"),
+    p = subprocess.run([sys.executable, str(ROOT / "localize.py"),
                         "--reference", str(out / "pair000_reference.png"),
                         "--search", str(out / "pair000_search.png")],
                        cwd=ROOT, check=True, capture_output=True, text=True)
@@ -288,7 +289,7 @@ def test_manifest_pair_seed_actually_reproduces_the_pair(tmp_path):
     not just a plausible-looking one.
     """
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
                     "--num-pairs", "3", "--out", str(out),
                     "--style", "mixed", "--seed", "12345"],
                    cwd=ROOT, check=True, capture_output=True)
@@ -318,7 +319,7 @@ def test_evaluate_finds_localize_regardless_of_caller_cwd(tmp_path):
     instructs).
     """
     out = tmp_path / "ds"
-    subprocess.run([sys.executable, str(SRC / "generate_dataset.py"),
+    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
                     "--num-pairs", "1", "--out", str(out), "--seed", "77"],
                    cwd=ROOT, check=True, capture_output=True)
     # Run evaluate.py from ROOT (not from src/), exactly as the README's

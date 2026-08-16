@@ -35,8 +35,9 @@ import gradio as gr
 import numpy as np
 
 PROJECT_DIR = Path(__file__).parent.resolve()
-GEN = PROJECT_DIR / "generate_dataset.py"
-LOC = PROJECT_DIR / "localize.py"
+ROOT_DIR = PROJECT_DIR.parent
+GEN = ROOT_DIR / "generate_dataset.py"
+LOC = ROOT_DIR / "localize.py"
 
 
 # ------------------------------------------------------------------ helpers

@@ -36,10 +36,16 @@ import argparse
 import csv
 import json
 import os
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 
+# generate_dataset.py lives at the repo root (one level up from this file in
+# src/), not next to this script -- add it to sys.path so the bare import
+# below resolves regardless of the caller's current working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from generate_dataset import (LAYOUTS, process_variation_field, sem_capture)
 
 

@@ -19,7 +19,7 @@ baseline seeds mostly don't (that's the point of a 93.33% accuracy figure);
 the documented worst-case (721 px, seed 202 pair 12 -- see README "Results")
 is reproduced with:
 
-    python src/generate_dataset.py --num-pairs 30 --out results/sweep202 --style mixed --seed 202
+    python generate_dataset.py --num-pairs 30 --out results/sweep202 --style mixed --seed 202
     python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 """
 import argparse
@@ -31,9 +31,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Resolve localize.py next to this file, not relative to the caller's CWD --
+# Resolve localize.py at the repo root, not relative to the caller's CWD --
 # see the identical note in evaluate.py.
-LOCALIZE = Path(__file__).resolve().parent / "localize.py"
+LOCALIZE = Path(__file__).resolve().parent.parent / "localize.py"
 
 
 def _predict(dataset, rec):

@@ -26,11 +26,12 @@ from pathlib import Path
 
 import numpy as np
 
-# Resolve localize.py next to this file rather than relying on the caller's
+# Resolve localize.py at the repo root rather than relying on the caller's
 # current working directory -- evaluate.py is invoked as `python src/evaluate.py
 # results/dataset` from the repo root, so a bare "localize.py" would look for
-# ./localize.py relative to the CWD and fail to find it in src/.
-LOCALIZE = Path(__file__).resolve().parent / "localize.py"
+# ./localize.py relative to the CWD and fail to find it (localize.py lives at
+# the repo root, one level up from this file in src/).
+LOCALIZE = Path(__file__).resolve().parent.parent / "localize.py"
 
 
 def main():

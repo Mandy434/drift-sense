@@ -210,7 +210,7 @@ is kept as an identical, explicitly-named copy of the same freeze.
 ### 1. Generate a dataset (with ground truth)
 
 ```bash
-python src/generate_dataset.py --num-pairs 30 --out results/dataset --style mixed --seed 2026
+python generate_dataset.py --num-pairs 30 --out results/dataset --style mixed --seed 2026
 ```
 
 This writes, into `dataset/`:
@@ -245,7 +245,7 @@ Options:
 ### 2. Run localization on a single pair
 
 ```bash
-python src/localize.py --reference results/dataset/pair000_reference.png --search results/dataset/pair000_search.png
+python localize.py --reference results/dataset/pair000_reference.png --search results/dataset/pair000_search.png
 ```
 
 Prints a single line to stdout — the predicted center:
@@ -295,16 +295,19 @@ right the arrow is invisibly short, which is the honest outcome.
 
 ## Repository contents
 
-Layout follows the challenge's recommended `submission/` structure: runnable code
-under `src/`, committed datasets/plots/examples under `results/`, citations under
-`references/`, and empty-but-explained `configs/` and `model/` stubs (see below —
-this pipeline has no separate config file or trained weights, so those folders
-each hold a short `README.md` saying so rather than being silently absent).
+Layout follows the challenge's recommended `submission/` structure: the two
+required entry points, `generate_dataset.py` and `localize.py`, sit at the repo
+root exactly as the recommended tree lists them; everything else that supports
+them lives under `src/`, committed datasets/plots/examples under `results/`,
+citations under `references/`, and empty-but-explained `configs/` and `model/`
+stubs (see below — this pipeline has no separate config file or trained
+weights, so those folders each hold a short `README.md` saying so rather than
+being silently absent).
 
 | Path | Purpose |
 |---|---|
-| `src/generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM and optical imaging models, ground truth) |
-| `src/localize.py` | **Localization inference script** — the file to run on test data |
+| `generate_dataset.py` | Synthetic dataset generator (DRAM + FinFET, SEM and optical imaging models, ground truth) |
+| `localize.py` | **Localization inference script** — the file to run on test data |
 | `src/evaluate.py` | Batch evaluation harness (accuracy, error, timing) |
 | `src/app.py` | Gradio browser app: generate a dataset, browse SEM and optical pairs, and see the localiser's measured drift vector per pair |
 | `src/make_visuals.py` | Renders side-by-side success/failure visualizations |
@@ -400,10 +403,10 @@ can't:
 Reproduce either with:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/dataset  --style mixed --seed 42
+python generate_dataset.py --num-pairs 20 --out results/dataset  --style mixed --seed 42
 python src/make_visuals.py --dataset results/dataset  --idx 0  --out results/examples/success_case.png
 
-python src/generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
+python generate_dataset.py --num-pairs 20 --out results/sweep202 --style mixed --seed 202
 python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/examples/failure_case.png
 ```
 
@@ -439,16 +442,16 @@ python src/make_visuals.py --dataset results/sweep202 --idx 12 --out results/exa
 The headline figure is an aggregate over four seeds. Run all four:
 
 ```bash
-python src/generate_dataset.py --num-pairs 30 --out results/dataset  --style mixed --seed 42
+python generate_dataset.py --num-pairs 30 --out results/dataset  --style mixed --seed 42
 python src/evaluate.py results/dataset
 
-python src/generate_dataset.py --num-pairs 30 --out results/sweep101 --style mixed --seed 101
+python generate_dataset.py --num-pairs 30 --out results/sweep101 --style mixed --seed 101
 python src/evaluate.py results/sweep101
 
-python src/generate_dataset.py --num-pairs 30 --out results/sweep202 --style mixed --seed 202
+python generate_dataset.py --num-pairs 30 --out results/sweep202 --style mixed --seed 202
 python src/evaluate.py results/sweep202
 
-python src/generate_dataset.py --num-pairs 30 --out results/sweep303 --style mixed --seed 303
+python generate_dataset.py --num-pairs 30 --out results/sweep303 --style mixed --seed 303
 python src/evaluate.py results/sweep303
 ```
 
@@ -480,10 +483,10 @@ from a higher dose). We describe these runs as dose reductions rather than
 "3x noise" for that reason.
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/stress2x --style mixed --seed 77 --noise-scale 2.0
+python generate_dataset.py --num-pairs 20 --out results/stress2x --style mixed --seed 77 --noise-scale 2.0
 python src/evaluate.py results/stress2x
 
-python src/generate_dataset.py --num-pairs 20 --out results/stress3x --style mixed --seed 555 --noise-scale 3.0
+python generate_dataset.py --num-pairs 20 --out results/stress3x --style mixed --seed 555 --noise-scale 3.0
 python src/evaluate.py results/stress3x
 ```
 
@@ -496,7 +499,7 @@ Worst-case check — disable across-die variation entirely, leaving the array
 genuinely ambiguous except for the micron-scale landmarks:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/nofp --style mixed --seed 404 --pv-amplitude 0.0
+python generate_dataset.py --num-pairs 20 --out results/nofp --style mixed --seed 404 --pv-amplitude 0.0
 python src/evaluate.py results/nofp
 ```
 
@@ -512,7 +515,7 @@ a precise 95 %.
 Boundary-straddling crops — force every reference to span a mat/strip edge:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/boundary --style mixed --seed 909 --boundary-bias 1.0
+python generate_dataset.py --num-pairs 20 --out results/boundary --style mixed --seed 909 --boundary-bias 1.0
 python src/evaluate.py results/boundary
 ```
 
@@ -533,10 +536,10 @@ true ratio and must find it by search, exactly as it would on an unlabelled test
 image:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/ratio9  --style mixed --seed 55 --scale-ratio 9.0
+python generate_dataset.py --num-pairs 20 --out results/ratio9  --style mixed --seed 55 --scale-ratio 9.0
 python src/evaluate.py results/ratio9
 
-python src/generate_dataset.py --num-pairs 20 --out results/ratio11 --style mixed --seed 55 --scale-ratio 11.0
+python generate_dataset.py --num-pairs 20 --out results/ratio11 --style mixed --seed 55 --scale-ratio 11.0
 python src/evaluate.py results/ratio11
 ```
 
@@ -563,7 +566,7 @@ raising this doesn't reintroduce the border-clipping bug the margin exists to
 prevent (checked directly: no site in this run sits within 60 px of the border):
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/rot2 --style mixed --seed 88 --max-rotation-deg 2.0
+python generate_dataset.py --num-pairs 20 --out results/rot2 --style mixed --seed 88 --max-rotation-deg 2.0
 python src/evaluate.py results/rot2
 ```
 
@@ -592,7 +595,7 @@ For slides, demos, or a quick look at the layout without any disambiguation
 scaffolding:
 
 ```bash
-python src/generate_dataset.py --num-pairs 20 --out results/demo --style mixed --seed 42 --visual-clarity
+python generate_dataset.py --num-pairs 20 --out results/demo --style mixed --seed 42 --visual-clarity
 ```
 
 This disables both the process-variation fingerprint and the micron-scale
@@ -610,8 +613,8 @@ aggregate accuracy, not pair by pair.
 ### Optical microscope mode (bonus)
 
 ```bash
-python src/generate_dataset.py --num-pairs 8 --out results/optical --style mixed --seed 606 --modality optical
-python src/localize.py --reference results/optical/pair000_reference.png --search results/optical/pair000_search.png
+python generate_dataset.py --num-pairs 8 --out results/optical --style mixed --seed 606 --modality optical
+python localize.py --reference results/optical/pair000_reference.png --search results/optical/pair000_search.png
 ```
 
 The images are written as 3-channel PNGs and `localize.py` needs no extra flag.

@@ -33,10 +33,16 @@ Usage
 
 import argparse
 import os
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 
+# generate_dataset.py lives at the repo root (one level up from this file in
+# src/) -- add it to sys.path so the bare import below resolves regardless of
+# the caller's current working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from generate_dataset import (LAYOUTS, generate_pair, process_variation_field)
 
 PANEL = 420
