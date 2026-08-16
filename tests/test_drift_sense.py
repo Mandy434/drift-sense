@@ -280,6 +280,32 @@ def test_localize_cli_prints_two_numbers(tmp_path):
     float(parts[0]), float(parts[1])
 
 
+def test_localize_cli_with_confidence_appends_a_repeatable_third_number(tmp_path):
+    """
+    The problem statement asks the localiser to 'provide a repeatable score
+    or confidence where possible' (Scope & Key Requirements, section C).
+    --with-confidence must add exactly one extra number without disturbing
+    the default two-number contract the rest of the pipeline (evaluate.py,
+    app.py, the test above) relies on, and that number must be repeatable
+    for the same input pair.
+    """
+    out = tmp_path / "ds"
+    subprocess.run([sys.executable, str(ROOT / "generate_dataset.py"),
+                    "--num-pairs", "1", "--out", str(out), "--seed", "6"],
+                   cwd=ROOT, check=True, capture_output=True)
+    args = [sys.executable, str(ROOT / "localize.py"),
+            "--reference", str(out / "pair000_reference.png"),
+            "--search", str(out / "pair000_search.png"),
+            "--with-confidence"]
+    a = subprocess.run(args, cwd=ROOT, check=True, capture_output=True, text=True)
+    b = subprocess.run(args, cwd=ROOT, check=True, capture_output=True, text=True)
+    parts = a.stdout.strip().split()
+    assert len(parts) == 3, f"--with-confidence must print 'x y confidence', got {a.stdout!r}"
+    x, y, conf = float(parts[0]), float(parts[1]), float(parts[2])
+    assert -1.01 <= conf <= 1.01, f"confidence {conf} outside NCC range"
+    assert a.stdout == b.stdout, "confidence must be repeatable for the same input pair"
+
+
 def test_manifest_pair_seed_actually_reproduces_the_pair(tmp_path):
     """
     The spec requires the random seed be stored per pair so any single pair is

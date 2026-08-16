@@ -9,8 +9,13 @@ pixel coordinates.
 Usage
 -----
     python localize.py --reference path/to/reference.png --search path/to/search.png
+    python localize.py --reference ref.png --search search.png --with-confidence
 
 Output: a single line "x y" on stdout (predicted center, sub-pixel floats).
+With --with-confidence, a third number is appended: "x y confidence" -- the
+winning site's normalized cross-correlation score, repeatable for a given
+input pair. The default two-number output is unchanged unless this flag is
+given.
 
 Method (classical, no training required)
 ----------------------------------------
@@ -128,7 +133,8 @@ def subpixel(res, x, y):
     return x, y
 
 
-def localize(reference, search, verbose=False, scale_ratio=None):
+def localize(reference, search, verbose=False, scale_ratio=None,
+            with_confidence=False):
     t0 = time.time()
     search_f = cv2.GaussianBlur(search, (0, 0), SEARCH_BLUR)
 
@@ -228,10 +234,22 @@ def localize(reference, search, verbose=False, scale_ratio=None):
     sx, sy = subpixel(res, px, py)
     cx, cy = sx + size / 2.0, sy + size / 2.0
 
+    # Repeatable confidence for the site actually returned: the chosen
+    # candidate's own lattice NCC score (TM_CCOEFF_NORMED, nominally in
+    # [-1, 1], typically 0.4-1.0 for a correct lock). This is deliberately
+    # `chosen["pv"]`, not the raw grid-search `score` above -- the two
+    # usually coincide, but on a fingerprint override or a genuine
+    # nearest-to-center tie-break the final site differs from the coarse/fine
+    # grid's naive best, and `score` would then describe a site that was not
+    # the one actually reported.
+    confidence = float(chosen["pv"])
+
     if verbose:
-        print(f"# score={score:.4f} size={size}px angle={angle:+.2f}deg "
-              f"candidates={len(cand)} time={time.time() - t0:.2f}s",
-              file=sys.stderr)
+        print(f"# grid_best_score={score:.4f} size={size}px angle={angle:+.2f}deg "
+              f"candidates={len(cand)} chosen_confidence={confidence:.4f} "
+              f"time={time.time() - t0:.2f}s", file=sys.stderr)
+    if with_confidence:
+        return cx, cy, confidence
     return cx, cy
 
 
@@ -243,6 +261,13 @@ def main():
     ap.add_argument("--scale-ratio", type=float, default=None,
                     help="override the reference/search magnification ratio "
                          "(default: 10 for SEM, 3 for 3-channel optical)")
+    ap.add_argument("--with-confidence", action="store_true",
+                    help="also print a third number: the winning site's "
+                         "normalized cross-correlation score (TM_CCOEFF_NORMED, "
+                         "roughly [-1, 1], repeatable for a given input pair) as "
+                         "a confidence value. Does not change the default "
+                         "two-number 'x y' output -- only adds a third number "
+                         "when this flag is given.")
     args = ap.parse_args()
 
     ref = load_image(args.reference)
@@ -250,9 +275,15 @@ def main():
     if (ref.ndim == 3) != (sea.ndim == 3):
         sys.exit("ERROR: reference and search must be the same modality "
                  "(both 1-channel SEM or both 3-channel optical)")
-    cx, cy = localize(ref, sea, verbose=args.verbose,
-                      scale_ratio=args.scale_ratio)
-    print(f"{cx:.2f} {cy:.2f}")
+    if args.with_confidence:
+        cx, cy, conf = localize(ref, sea, verbose=args.verbose,
+                                scale_ratio=args.scale_ratio,
+                                with_confidence=True)
+        print(f"{cx:.2f} {cy:.2f} {conf:.4f}")
+    else:
+        cx, cy = localize(ref, sea, verbose=args.verbose,
+                          scale_ratio=args.scale_ratio)
+        print(f"{cx:.2f} {cy:.2f}")
 
 
 if __name__ == "__main__":

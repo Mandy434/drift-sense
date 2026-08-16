@@ -265,6 +265,20 @@ runtime to stderr (stdout stays a clean `x y` for machine parsing). Add
 read from the image's channel count (10.0 for SEM, 3.0 for optical) — useful if
 you generate a pair at a non-default `--search-size`/`--ref-size` combination.
 
+**Confidence.** The spec asks for "a repeatable score or confidence where
+possible." Add `--with-confidence` to append a third number — the winning
+site's normalized cross-correlation score (roughly `[-1, 1]`, repeatable for a
+given input pair):
+
+```bash
+python localize.py --reference results/dataset/pair000_reference.png --search results/dataset/pair000_search.png --with-confidence
+# 348.43 164.79 0.8215
+```
+
+This is opt-in and off by default: `evaluate.py`, `app.py` and the CLI
+contract test all parse exactly two numbers from the default invocation, so
+the flag adds a number rather than changing what is already there.
+
 ### 3. Score the whole dataset
 
 ```bash
