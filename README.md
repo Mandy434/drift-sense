@@ -732,7 +732,7 @@ guard the properties every reported number silently depends on:
 - Accuracy is 93.33 %, not 100 %. The residual failures are concentrated on
   near-uniform, low-process-variation FinFET dies, where neither the lattice nor
   the fingerprint distinguishes one period from the next.
-- When it fails, it fails big, not small. The five sub-5px-tolerance failures in
+- When it fails, it fails big, not small. The eight sub-5px-tolerance failures in
   the 120-pair baseline are full lattice-period jumps (8–721 px), not near-miss
   overshoots — this pipeline does not degrade gracefully near its failure
   boundary, it jumps to a different, equally-confident-looking site. A
