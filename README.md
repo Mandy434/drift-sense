@@ -52,6 +52,18 @@ section.
 | At 3x dose reduction (seed 555) | **100 % (20/20)**, median 0.12 px |
 | Bonus: optical microscope, 3-channel RGB | **100 % (8/8)**, median 0.55 px |
 
+**Hardware, timing method.** Runtime is CPU-only, single execution thread, no
+GPU — the ~2.3 s/pair figure above was measured on a commodity x86-64 laptop
+CPU. Timing is wall-clock via `time.perf_counter()` (a monotonic clock, not
+affected by system clock adjustments) around each `localize.py` subprocess
+call, so it includes process start-up — the honest cost of the CLI contract,
+not just the inner algorithm. This is not a one-time claim: every
+`evaluate.py` run prints the exact hardware string (`platform.processor()`)
+and Python version (`platform.python_version()`) for *that* run, and writes
+per-pair timing to `results.csv`'s `time_s` column — so runtime is
+self-documenting on whatever machine reproduces these numbers, not pinned to
+one undisclosed machine.
+
 Seeds: `42`, `101`, `202`, `303` (30 pairs each). Per-seed: 30/30, 28/30,
 28/30, 26/30. Exact commands in
 [Reproducing our reported numbers](#reproducing-our-reported-numbers).
