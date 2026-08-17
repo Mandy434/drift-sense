@@ -19,11 +19,13 @@ rotation edge 2°) — **180 evaluated pairs total**, each seed/sweep backed by
 its own committed `results.csv` (`dataset/`, `sweep101/`, `sweep202/`,
 `sweep303/`, `ratio9/`, `ratio11/`, `rot2/`) and reproducible with the exact
 seed and command in this README. Seed 42 additionally has every one of its 30
-pairs committed as raw, unannotated reference/search images in
-`results/dataset_sample/` — every number reported for seed 42 is directly
-image-verifiable, not just CSV-verifiable; the other three baseline seeds and
-three robustness sweeps are CSV-verifiable but do not carry committed raw
-images. A few further robustness checks (dose reduction, boundary bias,
+pairs committed as raw, unannotated reference/search images, both inside
+`results/dataset/` itself (alongside the `results.csv` it was scored against)
+and, identically, in `results/dataset_sample/` — every number reported for
+seed 42 is directly image-verifiable, not just CSV-verifiable; the other
+three baseline seeds and three robustness sweeps are CSV-verifiable but do
+not carry committed raw images. A few further robustness checks (dose
+reduction, boundary bias,
 fingerprint ablation) are reported below but were run before this repo
 started committing per-run CSVs, so their numbers are prose-only, not
 independently file-backed the same way. Reported over **four independent
@@ -348,9 +350,10 @@ being silently absent).
 | `configs/` | No separate config module — every run parameter is an explicit, documented CLI flag on `generate_dataset.py`/`localize.py` (see the options table below). `configs/README.md` explains this so the folder isn't mistaken for a missing piece. |
 | `model/` | No trained weights — the pipeline is entirely classical CV, no training step. `model/README.md` states this explicitly. |
 | `results/examples/` | Representative SEM success and failure cases |
-| `results/dataset_sample/` | The full seed-42, 30-pair raw (unannotated) reference/search set — identical to what `results/dataset/results.csv` was scored against, so every number reported for seed 42 is directly image-verifiable (the other three seeds and three robustness sweeps have a committed `results.csv` but not raw images) |
+| `results/dataset_sample/` | An identical duplicate copy of the raw seed-42 reference/search images and ground truth also committed inside `results/dataset/` (see below) — kept as a standalone, evaluator-friendly bundle so the full raw seed-42 set is reachable without depending on the `results/dataset/` naming |
 | `results/rgb/` | Optical (RGB) example pairs — default build and `--visual-clarity` build |
-| `results/dataset/`, `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (30 rows for the four baseline seeds' folders, 20 for the three robustness sweeps) from each reported evaluation run — raw images for the seed-42 run are separately committed in `results/dataset_sample/` above |
+| `results/dataset/` | `results.csv` + the full raw (unannotated) seed-42 reference/search images and `ground_truth.json`/`.csv` it was scored against — every number reported for seed 42 is directly image-verifiable, not just CSV-verifiable |
+| `results/sweep101/`, `results/sweep202/`, `results/sweep303/`, `results/ratio9/`, `results/ratio11/`, `results/rot2/` | Committed `results.csv` (30 rows for the three baseline-seed folders, 20 for the three robustness sweeps) from each reported evaluation run — CSV-verifiable but no raw images committed |
 | `results/heldout/` | Committed `results.csv` (30 rows) from a seed never touched during development — see [Held-out generalization check](#held-out-generalization-check) |
 | `results/vc42/`, `results/vc101/`, `results/vc202/`, `results/vc303/` | Committed `results.csv` (30 rows each) for the `--visual-clarity` build on the same four seeds as the headline number — see [Clean-image mode](#clean-image-mode---visual-clarity) |
 | `results/accuracy_by_threshold.png` | Aggregate accuracy-by-threshold chart (120 pairs, 4 seeds) |
@@ -488,9 +491,10 @@ python src/evaluate.py results/sweep303
 ```
 
 All four baseline seeds run 30 pairs each; seed 42 additionally has every one
-of those 30 pairs' raw reference/search images committed in full in
-`results/dataset_sample/` (see the note in Results above) -- the other three
-seeds are CSV-verifiable only, matching their committed `results.csv`.
+of those 30 pairs' raw reference/search images committed in full, both inside
+`results/dataset/` itself and duplicated in `results/dataset_sample/` (see
+the note in Results above) -- the other three seeds are CSV-verifiable only,
+matching their committed `results.csv`.
 
 Expected (on the environment in `requirements-freeze.txt`): 30/30, 28/30,
 28/30, 26/30 → 112/120 = 93.33 % @ 5 px. `evaluate.py` also writes `results.csv`
