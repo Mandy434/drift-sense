@@ -344,7 +344,7 @@ being silently absent).
 | `src/generate_family_dataset.py` | Sample-family generator: many reference sites from **one** die, so a wrong answer lands on a sibling cell rather than a different die |
 | `src/visualize_pipeline.py` | Renders the SEM imaging chain stage by stage (layout → PV field → edge brightening → blur → shot noise → read noise) |
 | `src/solvability_report.py` | Per-pair diagnostic: brute-force search in a structural channel and a fingerprint channel separately, reporting the rank of the true site in each |
-| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (28 tests) |
+| `tests/` | pytest suite: calibration, 6F²/CPP geometry, ground-truth integrity, solvability margin, determinism, CLI contract, optical modality (29 tests) |
 | `configs/` | No separate config module — every run parameter is an explicit, documented CLI flag on `generate_dataset.py`/`localize.py` (see the options table below). `configs/README.md` explains this so the folder isn't mistaken for a missing piece. |
 | `model/` | No trained weights — the pipeline is entirely classical CV, no training step. `model/README.md` states this explicitly. |
 | `results/examples/` | Representative SEM success and failure cases |
@@ -712,9 +712,9 @@ the same fingerprint field — the hardest realistic form of navigation error.
 pytest tests/ -q
 ```
 
-28 tests (22 `def test_...` functions; 3 are parametrized across styles/seeds,
-so `pytest --collect-only` reports 28 collected cases — count the functions
-with `grep` and you'll get 22, which is not a discrepancy). These are
+29 tests (23 `def test_...` functions; 3 are parametrized across styles/seeds,
+so `pytest --collect-only` reports 29 collected cases — count the functions
+with `grep` and you'll get 23, which is not a discrepancy). These are
 contract tests rather than accuracy tests — they
 guard the properties every reported number silently depends on:
 
